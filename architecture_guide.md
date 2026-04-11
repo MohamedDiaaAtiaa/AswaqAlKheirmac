@@ -51,3 +51,12 @@ The "source of truth" is the Supabase database.
 - **Expo App**: The consumption layer (Mobile, React Native).
 - **Shared Schemas**: Both apps must refer to the same table structures: `products`, `orders`, `profiles`, and `app_settings`.
 - **Security**: Both use the same `check_is_admin()` SQL function to verify permissions via Row Level Security (RLS).
+
+## 5. Category Management
+Categories are no longer hardcoded in the mobile app; they are fully dynamic and data-driven.
+
+### 🗂️ Logic
+- **Storage**: `app_settings` table where `key = 'categories'`.
+- **Format**: A JSON array of category objects, for example: `[{"id": "dairy", "label": "Dairy", "emoji": "🥛"}, ...]`.
+- **Integration**: The mobile app fetches this configuration (e.g., in `HomeScreen` and `ShopScreen`) to display dynamic category tiles. If the key is missing, it falls back to hardcoded defaults.
+- **Admin Setup**: The admin panel should provide a visual way to manage this list, allowing admins to add, edit, or remove categories (name, ID, and emoji) directly from the `app_settings` table.
