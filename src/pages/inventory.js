@@ -65,7 +65,13 @@ async function fetchCategories() {
     return
   }
 
-  categories = data?.value || ['dairy', 'fruits', 'vegetables', 'meat', 'bakery']
+  categories = data?.value || [
+    { id: 'dairy', label: 'Dairy', emoji: '🥛' },
+    { id: 'fruits', label: 'Fruits', emoji: '🍎' },
+    { id: 'vegetables', label: 'Vegetables', emoji: '🥦' },
+    { id: 'meat', label: 'Meat', emoji: '🥩' },
+    { id: 'bakery', label: 'Bakery', emoji: '🥐' }
+  ]
 }
 
 async function saveCategories() {
@@ -114,6 +120,9 @@ function renderTable(searchQuery = '') {
     const discountedVariant = p.sizes.find(s => s.old_price > s.price)
     const discountPercent = discountedVariant ? Math.round((1 - discountedVariant.price / discountedVariant.old_price) * 100) : 0
 
+    const catObj = categories.find(c => c.id === p.category)
+    const catDisplay = catObj ? `${catObj.emoji} ${catObj.label}` : p.category
+
     return `
     <tr>
       <td>
@@ -131,7 +140,7 @@ function renderTable(searchQuery = '') {
           </div>
         </div>
       </td>
-      <td style="text-transform: capitalize;"><span class="status-badge" style="background: #f1f5f9; color: #475569;">${p.category}</span></td>
+      <td style="text-transform: capitalize;"><span class="status-badge" style="background: #f1f5f9; color: #475569;">${catDisplay}</span></td>
       <td style="font-size: 0.75rem; color: var(--text-muted);">${p.sizes.length} variant(s)</td>
       <td>
         <div style="font-weight: 700;">€${minPrice.toFixed(2)}</div>
@@ -226,11 +235,22 @@ function openCategoryModal() {
           <button id="close-cat-modal" class="close-btn">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="input-group" style="display: flex; gap: 0.5rem;">
-            <input type="text" id="new-cat-input" placeholder="${t.add_category}" style="flex: 1;">
-            <button id="add-cat-btn" class="btn-primary" style="width: auto;">+</button>
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr 80px auto; margin-bottom: 1rem; align-items: flex-end; gap: 0.5rem;">
+            <div class="input-group" style="margin:0;">
+              <label style="font-size: 0.75rem;">ID</label>
+              <input type="text" id="new-cat-id" placeholder="e.g. dairy">
+            </div>
+            <div class="input-group" style="margin:0;">
+              <label style="font-size: 0.75rem;">Label</label>
+              <input type="text" id="new-cat-label" placeholder="e.g. Dairy">
+            </div>
+            <div class="input-group" style="margin:0;">
+              <label style="font-size: 0.75rem;">Emoji</label>
+              <input type="text" id="new-cat-emoji" placeholder="🥛">
+            </div>
+            <button id="add-cat-btn" class="btn-primary" style="height: 48px; min-width: 48px; margin-bottom: 0;">+</button>
           </div>
-          <div id="cats-list" class="categories-container"></div>
+          <div id="cats-list" class="categories-container" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
         </div>
         <div class="modal-footer">
           <button id="close-cat-footer" class="btn-secondary">${t.cancel}</button>
@@ -243,9 +263,13 @@ function openCategoryModal() {
   const renderCats = () => {
     const container = document.getElementById('cats-list')
     container.innerHTML = categories.map((c, i) => `
-      <div class="category-pill">
-        <span>${c}</span>
-        <button onclick="removeCategory(${i})">&times;</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-hover); padding: 0.5rem 1rem; border-radius: var(--radius-md);">
+        <div style="font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">${c.emoji || '📦'}</span>
+          <span>${c.label}</span>
+          <span style="color: var(--text-muted); font-size: 0.75rem; font-family: monospace;">(${c.id})</span>
+        </div>
+        <button class="btn-icon" onclick="removeCategory(${i})" style="color: var(--error); font-size: 1.25rem;">&times;</button>
       </div>
     `).join('')
   }
@@ -259,13 +283,23 @@ function openCategoryModal() {
   renderCats()
 
   document.getElementById('add-cat-btn').addEventListener('click', async () => {
-    const input = document.getElementById('new-cat-input')
-    const val = input.value.trim().toLowerCase()
-    if (val && !categories.includes(val)) {
-      categories.push(val)
-      input.value = ''
+    const idInput = document.getElementById('new-cat-id')
+    const labelInput = document.getElementById('new-cat-label')
+    const emojiInput = document.getElementById('new-cat-emoji')
+    
+    const idVal = idInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    const labelVal = labelInput.value.trim()
+    const emojiVal = emojiInput.value.trim() || '🛒'
+
+    if (idVal && labelVal && !categories.find(c => c.id === idVal)) {
+      categories.push({ id: idVal, label: labelVal, emoji: emojiVal })
+      idInput.value = ''
+      labelInput.value = ''
+      emojiInput.value = ''
       renderCats()
       await saveCategories()
+    } else {
+      alert("Please provide a valid, unique ID and a Label.")
     }
   })
 
@@ -299,7 +333,7 @@ function openProductModal(product = null) {
               <div class="input-group">
                 <label>${t.category}</label>
                 <select name="category" required class="form-textarea" style="min-height: 48px; padding: 0.5rem 1rem;">
-                  ${categories.map(c => `<option value="${c}" ${product?.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                  ${categories.map(c => `<option value="${c.id}" ${product?.category === c.id ? 'selected' : ''}>${c.emoji || ''} ${c.label || c.id}</option>`).join('')}
                 </select>
               </div>
             </div>
