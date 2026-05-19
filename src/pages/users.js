@@ -1,13 +1,13 @@
 import { supabase } from '../lib/supabase.js'
 import { getCurrentUser } from '../lib/auth.js'
 import { translations } from '../lib/translations.js'
-
+import { Dialog } from '../lib/dialog.js'
 let users = []
 let currentUser = null
 const MASTER_PASSWORD = "superadmindo"
 
 export async function loadUsers(container) {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
 
   // Clear header actions
@@ -52,12 +52,12 @@ async function fetchUsers() {
 }
 
 function renderUsers() {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
   const tbody = document.getElementById('users-tbody')
 
   if (users.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">No users found.</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">${t.no_users}</td></tr>`
     return
   }
 
@@ -89,7 +89,7 @@ function renderUsers() {
       const id = btn.dataset.id
       const newStatus = btn.dataset.admin === 'false'
       
-      const confirmAction = confirm(t.grant_admin + '?');
+      const confirmAction = await Dialog.confirm(t.grant_admin + '?');
       if (!confirmAction) return;
 
       btn.style.opacity = '0.5'
@@ -100,7 +100,7 @@ function renderUsers() {
         .eq('id', id)
 
       if (error) {
-        alert('Failed')
+        await Dialog.alert(t.incorrect_password)
         btn.style.opacity = '1'
       } else {
         await fetchUsers()
@@ -109,13 +109,13 @@ function renderUsers() {
   })
 
   tbody.querySelectorAll('.edit-user-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const pass = prompt("Enter Master Password (superadmindo) to edit user:")
+    btn.addEventListener('click', async () => {
+      const pass = await Dialog.prompt(t.enter_master_password_edit)
       if (pass === MASTER_PASSWORD) {
         const user = users.find(u => u.id === btn.dataset.id)
         openEditUserModal(user)
       } else {
-        alert("Incorrect Master Password!")
+        await Dialog.alert(t.incorrect_password)
       }
     })
   })
@@ -123,27 +123,27 @@ function renderUsers() {
   tbody.querySelectorAll('.delete-user-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id
-      const pass = prompt("Enter Master Password (superadmindo) to DELETE user:")
+      const pass = await Dialog.prompt(t.enter_master_password_delete)
       if (pass === MASTER_PASSWORD) {
-        if (confirm("Are you sure? This cannot be undone.")) {
+        if (await Dialog.confirm(t.confirm_delete_user)) {
           // In Supabase, deleting from profiles is easy, but auth user requires admin API
           // For demo purposes, we delete the profile
           const { error } = await supabase.from('profiles').delete().eq('id', id)
           if (!error) {
             await fetchUsers()
           } else {
-            alert("Error: " + error.message)
+            await Dialog.alert("Error: " + error.message)
           }
         }
       } else {
-        alert("Incorrect Master Password!")
+        await Dialog.alert(t.incorrect_password)
       }
     })
   })
 }
 
 function openEditUserModal(user) {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
 
   const modalHtml = `
@@ -164,8 +164,8 @@ function openEditUserModal(user) {
               <input type="text" name="phone" value="${user.phone || ''}">
             </div>
             <div class="input-group">
-              <label>${t.password} (New)</label>
-              <input type="password" name="new_password" placeholder="Leave blank to keep current">
+              <label>${t.password_new}</label>
+              <input type="password" name="new_password" placeholder="${t.password_placeholder}">
             </div>
           </form>
         </div>
@@ -198,10 +198,10 @@ function openEditUserModal(user) {
     const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id)
 
     if (error) {
-      alert("Error: " + error.message)
+      await Dialog.alert("Error: " + error.message)
     } else {
       if (newPass) {
-        alert("Note: Password update simulated for demo. Real password updates for other users require Admin API permissions on the server.")
+        await Dialog.alert("Note: Password update simulated for demo. Real password updates for other users require Admin API permissions on the server.")
       }
       close()
       await fetchUsers()

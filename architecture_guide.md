@@ -7,6 +7,8 @@ Images for products are no longer just emojis; they are real image files.
 
 ### 🗺️ Storage Location
 - **System**: Supabase Storage
+- **Project URL**: `https://ezcfulijxtfglpfarxtl.supabase.co`
+- **Anon Key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y2Z1bGlqeHRmZ2xwZmFyeHRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MDkwNzYsImV4cCI6MjA5MTk4NTA3Nn0.6mRjNCZIlE5Y9LOYwCXxVXczqflL3YiF6QxbvcszTJ0`
 - **Bucket**: `product-images`
 - **Visibility**: Public (Anyone with the link can view)
 - **Database Field**: `products.image_url` (Contains the full public URL to the image)

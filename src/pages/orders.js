@@ -1,12 +1,14 @@
 import { supabase } from '../lib/supabase.js'
 import { translations } from '../lib/translations.js'
-
+import { Dialog } from '../lib/dialog.js'
 let orders = []
 let subscription = null
 let refreshInterval = null
+let currentBranchFilter = ''
 
-export async function loadOrders(container) {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+export async function loadOrders(container, branchId = '') {
+  currentBranchFilter = branchId
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
 
   // Setup header
@@ -14,7 +16,7 @@ export async function loadOrders(container) {
   headerActions.innerHTML = `
     <button class="btn-secondary" disabled>
       <span style="display:inline-block; width:8px; height:8px; background:var(--success); border-radius:50%; margin-right:4px;"></span>
-      Live Sync Active
+      ${t.live_sync_active}
     </button>
   `
 
@@ -25,15 +27,16 @@ export async function loadOrders(container) {
           <tr>
             <th>${t.order_id}</th>
             <th>${t.date}</th>
+            <th>${t.branch || 'الفرع'}</th>
             <th>${t.items}</th>
             <th>${t.total}</th>
-            <th>${t.priority || 'Rank'}</th>
+            <th>${t.priority}</th>
             <th>${t.status}</th>
             <th>${t.actions}</th>
           </tr>
         </thead>
         <tbody id="orders-tbody">
-          <tr><td colspan="7" style="text-align: center;">${t.loading}</td></tr>
+          <tr><td colspan="8" style="text-align: center;">${t.loading}</td></tr>
         </tbody>
       </table>
     </div>
@@ -47,14 +50,21 @@ export async function loadOrders(container) {
 }
 
 async function fetchOrders() {
-  const { data, error } = await supabase
+  let query = supabase
     .from('orders')
-    .select('*, order_items(*)')
+    .select('*, order_items(*), branches(name, name_en)')
     .order('created_at', { ascending: false })
     .limit(50)
 
+  if (currentBranchFilter) {
+    query = query.eq('branch_id', currentBranchFilter)
+  }
+
+  const { data, error } = await query
+
   if (error) {
-    document.getElementById('orders-tbody').innerHTML = `<tr><td colspan="7" class="error-text">Failed to load orders</td></tr>`
+    const t = translations[localStorage.getItem('aswaq_lang') || 'ar']
+    document.getElementById('orders-tbody').innerHTML = `<tr><td colspan="7" class="error-text">${t.loading}</td></tr>`
     return
   }
 
@@ -75,15 +85,29 @@ function calculatePriority(order) {
   return (itemCount * timeSinceSeconds) / 2
 }
 
+/** Get translated order status */
+function getStatusLabel(status) {
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
+  const t = translations[lang]
+  const statusMap = {
+    'Pending': t.pending || 'Pending',
+    'Preparing': t.preparing || 'Preparing',
+    'Out for Delivery': t.out_for_delivery,
+    'Delivered': t.delivered,
+    'Cancelled': t.cancelled
+  }
+  return statusMap[status] || status
+}
+
 function renderOrders() {
   const tbody = document.getElementById('orders-tbody')
   if (!tbody) return
 
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
 
   if (orders.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;">No incoming orders yet.</td></tr>`
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center;">${t.no_orders}</td></tr>`
     return
   }
 
@@ -93,6 +117,11 @@ function renderOrders() {
   tbody.innerHTML = sortedOrders.map(o => {
     const total = o.order_items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
     const itemCount = o.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0
+    const deliveryFeeVal = parseFloat(o.delivery_fee) || 0
+    const grandTotal = total + deliveryFeeVal
+    
+    // Branch name
+    const branchName = o.branches ? (lang === 'ar' ? o.branches.name : (o.branches.name_en || o.branches.name)) : '—'
     
     // Exact date and time including seconds
     const dateObj = new Date(o.created_at)
@@ -114,15 +143,22 @@ function renderOrders() {
         <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${o.id.split('-')[0]}...</td>
         <td>
           <div>${dateStr}</div>
-          <div style="font-size: 0.7rem; opacity: 0.8;">${diffSeconds}s ago</div>
+          <div style="font-size: 0.7rem; opacity: 0.8;">${diffSeconds}s</div>
         </td>
-        <td>${itemCount} item(s)</td>
-        <td style="font-weight: 600;">€${total.toFixed(2)}</td>
+        <td>
+          <div style="font-weight: 600; font-size: 0.8rem;">${branchName}</div>
+          ${o.delivery_area ? `<div style="font-size: 0.7rem; color: var(--text-muted);">${o.delivery_area}</div>` : ''}
+        </td>
+        <td>${itemCount} ${t.items}</td>
+        <td style="font-weight: 600;">
+          <div>€${grandTotal.toFixed(2)}</div>
+          ${deliveryFeeVal > 0 ? `<div style="font-size: 0.65rem; color: var(--text-muted);">+${deliveryFeeVal} ${t.delivery_fee_label || 'توصيل'}</div>` : ''}
+        </td>
         <td>
           <span class="priority-badge">${priority.toFixed(1)}</span>
         </td>
         <td>
-          <span class="status-badge" style="${o.status === 'Pending' ? 'background: #fef08a; color: #854d0e;' : ''}">${o.status}</span>
+          <span class="status-badge" style="${o.status === 'Pending' ? 'background: #fef08a; color: #854d0e;' : ''}">${getStatusLabel(o.status)}</span>
         </td>
         <td>
           <div class="action-row">
@@ -152,13 +188,13 @@ function renderOrders() {
   tbody.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id
-      if (confirm(t.delete_order + '?')) {
+      if (await Dialog.confirm(t.delete_order + '?')) {
         const { error } = await supabase.from('orders').delete().eq('id', id)
         if (!error) {
           orders = orders.filter(o => o.id !== id)
           renderOrders()
         } else {
-          alert('Delete failed: ' + error.message)
+          await Dialog.alert('Delete failed: ' + error.message)
         }
       }
     })
@@ -166,7 +202,7 @@ function renderOrders() {
 }
 
 function openOrderModal(order) {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
   const total = order.order_items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
   
@@ -174,11 +210,11 @@ function openOrderModal(order) {
     <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
       <div>
         <div style="font-weight: 500;">${item.product_name}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">Qty: ${item.quantity}</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">${t.qty}: ${item.quantity}</div>
       </div>
       <div style="font-weight: 600;">€${(item.price * item.quantity).toFixed(2)}</div>
     </div>
-  `).join('') || '<p>No items recorded.</p>'
+  `).join('') || `<p>${t.no_items}</p>`
 
   const modalHtml = `
     <div class="modal-overlay" id="order-modal-overlay">
@@ -212,11 +248,11 @@ function openOrderModal(order) {
             <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.75rem; color: var(--text-muted);">${t.status}</label>
             <div style="display: flex; gap: 0.75rem;">
               <select id="update-status-select" class="btn-secondary" style="flex: 1; padding: 0.5rem;">
-                <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
-                <option value="Preparing" ${order.status === 'Preparing' ? 'selected' : ''}>👨‍🍳 Preparing</option>
-                <option value="Out for Delivery" ${order.status === 'Out for Delivery' ? 'selected' : ''}>🛵 Out for Delivery</option>
-                <option value="Delivered" ${order.status === 'Delivered' ? 'selected' : ''}>✅ Delivered</option>
-                <option value="Cancelled" ${order.status === 'Cancelled' ? 'selected' : ''}>❌ Cancelled</option>
+                <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>⏳ ${t.pending}</option>
+                <option value="Preparing" ${order.status === 'Preparing' ? 'selected' : ''}>👨‍🍳 ${t.preparing}</option>
+                <option value="Out for Delivery" ${order.status === 'Out for Delivery' ? 'selected' : ''}>🛵 ${t.out_for_delivery}</option>
+                <option value="Delivered" ${order.status === 'Delivered' ? 'selected' : ''}>✅ ${t.delivered}</option>
+                <option value="Cancelled" ${order.status === 'Cancelled' ? 'selected' : ''}>❌ ${t.cancelled}</option>
               </select>
               <button id="save-status-btn" class="btn-primary" style="width: auto;">${t.save}</button>
             </div>
@@ -245,7 +281,7 @@ function openOrderModal(order) {
       .eq('id', order.id)
 
     if (error) {
-      alert('Failed: ' + error.message)
+      await Dialog.alert('Failed: ' + error.message)
       btn.disabled = false
       btn.textContent = t.save
     } else {
@@ -256,7 +292,7 @@ function openOrderModal(order) {
 }
 
 function openEditOrderModal(order) {
-  const lang = localStorage.getItem('freshmart_lang') || 'en'
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
   
   let currentItems = [...order.order_items]
@@ -267,7 +303,7 @@ function openEditOrderModal(order) {
       <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
         <div style="flex: 1;">
           <div style="font-weight: 600;">${item.product_name}</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">€${item.price} / unit</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">€${item.price} ${t.per_unit}</div>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <button type="button" class="btn-secondary" style="min-height: 32px; padding: 0 0.5rem;" onclick="updateItemQty(${idx}, -1)">-</button>
@@ -322,9 +358,6 @@ function openEditOrderModal(order) {
     btn.disabled = true
     btn.textContent = t.loading
 
-    // This is a complex update since we need to update order_items
-    // For simplicity in a demo, we delete old items and insert new ones
-    
     // First update the order's updated_at
     await supabase.from('orders').update({ updated_at: new Date().toISOString() }).eq('id', order.id)
 
@@ -343,7 +376,7 @@ function openEditOrderModal(order) {
     const { error } = await supabase.from('order_items').insert(newItems)
 
     if (error) {
-      alert('Save failed: ' + error.message)
+      await Dialog.alert('Save failed: ' + error.message)
       btn.disabled = false
       btn.textContent = t.save
     } else {
