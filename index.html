@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أسواق الخير - لوحة التحكم</title>
+  <link rel="icon" href="build/icon.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Main Dashboard View -->
+    <div id="dashboard-container" class="view hidden">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <img src="build/icon.png" alt="أسواق الخير" class="logo-img">
+          <span class="logo-text">أسواق الخير</span>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-page="inventory">
+            <span class="nav-icon">📦</span> <span data-t="inventory">المخزون</span>
+          </button>
+          <button class="nav-item" data-page="orders">
+            <span class="nav-icon">🔔</span> <span data-t="orders">الطلبات</span>
+            <span id="order-badge" class="badge hidden">0</span>
+          </button>
+          <button class="nav-item" data-page="branches">
+            <span class="nav-icon">🏪</span> <span data-t="branches">الفروع</span>
+          </button>
+          <button class="nav-item" data-page="branch_sales">
+            <span class="nav-icon">📊</span> <span data-t="bs_nav">السوق</span>
+          </button>
+          <button class="nav-item" data-page="categories">
+            <span class="nav-icon">🏷️</span> <span data-t="categories_nav">الفئات</span>
+          </button>
+          
+          <div class="nav-separator"></div>
+          
+          <!-- Souq Section -->
+          <div class="nav-group">
+            <button class="nav-item nav-dropdown-trigger" id="souq-trigger">
+              <span class="nav-icon">🛒</span> <span data-t="souq">السوق</span>
+              <span class="chevron">▼</span>
+            </button>
+            <div class="nav-dropdown hidden" id="souq-menu">
+              <button class="nav-item" data-page="souq_products" style="padding-right: 2.5rem;">
+                <span data-t="main_products">المنتجات الرئيسية</span>
+              </button>
+              <button class="nav-item" data-page="souq_orders" style="padding-right: 2.5rem;">
+                <span data-t="all_orders">كل الطلبات</span>
+              </button>
+              <button class="nav-item" data-page="tracking" style="padding-right: 2.5rem;">
+                <span data-t="tracking">التتبع اليومي</span>
+              </button>
+              <button class="nav-item" data-page="souq_sales" style="padding-right: 2.5rem;">
+                <span data-t="bs_nav">السوق</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="nav-separator"></div>
+
+          <button class="nav-item" data-page="users">
+            <span class="nav-icon">👥</span> <span data-t="users">المستخدمين</span>
+          </button>
+          <button class="nav-item" data-page="marketing">
+            <span class="nav-icon">✨</span> <span data-t="marketing">التسويق</span>
+          </button>
+          <button class="nav-item" data-page="store_settings">
+            <span class="nav-icon">⚙️</span> <span data-t="store_settings">إعدادات المتجر</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <!-- Removed Logout Button for desktop -->
+        </div>
+      </aside>
+      
+      <main class="content-area">
+        <header class="content-header">
+          <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <h2 id="page-title">مخزون المنتجات</h2>
+            <div id="branch-selector-container" class="branch-selector-container">
+              <select id="global-branch-selector" class="branch-select">
+                <option value="">-- تحميل الفروع --</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; gap: 1rem; align-items: center;">
+            <button id="lang-toggle" class="translator-btn">
+              <span>🌐</span>
+              <span id="lang-text">English</span>
+            </button>
+            <div class="header-actions" id="header-actions">
+              <!-- Dynamic actions based on page -->
+            </div>
+          </div>
+        </header>
+        
+        <div id="page-content" class="page-content">
+          <!-- Dynamically loaded content -->
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
