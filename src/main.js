@@ -44,9 +44,20 @@ const routes = {
 async function init() {
   applyLanguage()
   await fetchBranches()
+  await loadAppTheme()
   showDashboard()
   navigateTo('inventory')
   setupSouqDropdown()
+}
+
+async function loadAppTheme() {
+  const { data } = await supabase.from('app_settings').select('value').eq('key', 'store_info').single()
+  if (data && data.value && data.value.app_theme) {
+    const theme = data.value.app_theme
+    if (theme !== 'light') {
+      document.documentElement.setAttribute('data-theme', theme)
+    }
+  }
 }
 
 async function fetchBranches() {

@@ -301,6 +301,16 @@ function openBranchModal(branch = null) {
                 <input type="password" name="password" value="" dir="ltr" placeholder="${t.leave_empty_no_password}">
               </div>
             </div>
+            <div class="input-group">
+              <label>${lang === 'ar' ? 'صلاحيات المستخدم' : 'User Role'}</label>
+              <select name="user_role" style="padding: 0.5rem; width: 100%; border-radius: 8px; border: 1px solid var(--border);">
+                <option value="branch_manager" ${branch?.user_role === 'branch_manager' ? 'selected' : ''}>${lang === 'ar' ? 'مدير فرع (الافتراضي)' : 'Branch Manager (Default)'}</option>
+                <option value="market_manager" ${branch?.user_role === 'market_manager' ? 'selected' : ''}>${lang === 'ar' ? 'مدير سوق (صلاحيات كاملة للسوق)' : 'Market Manager (Full Souq Access)'}</option>
+                <option value="market_employee" ${branch?.user_role === 'market_employee' ? 'selected' : ''}>${lang === 'ar' ? 'موظف سوق (صلاحيات التعديل في السوق)' : 'Market Employee (Edit Souq)'}</option>
+                <option value="branch_employee" ${branch?.user_role === 'branch_employee' ? 'selected' : ''}>${lang === 'ar' ? 'موظف فرع (عرض فقط)' : 'Branch Employee (View Only)'}</option>
+                <option value="super_admin" ${branch?.user_role === 'super_admin' ? 'selected' : ''}>${lang === 'ar' ? 'مدير النظام (تحكم كامل)' : 'Super Admin (Full Control)'}</option>
+              </select>
+            </div>
             <div class="form-grid">
               <div class="input-group">
                 <label>📍 ${t.branch_latitude}</label>
@@ -359,7 +369,8 @@ function openBranchModal(branch = null) {
       is_active: formData.get('is_active') === 'on',
       is_default: formData.get('is_default') === 'on',
       username: formData.get('username') || null,
-      password_hash: formData.get('password') ? formData.get('password') : null
+      password_hash: formData.get('password') ? formData.get('password') : null,
+      user_role: formData.get('user_role') || 'branch_manager'
     }
 
     const id = formData.get('id')

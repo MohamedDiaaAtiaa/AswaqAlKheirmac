@@ -138,10 +138,25 @@ function renderSettings(container) {
         </div>
       </div>
 
+      <!-- App Theme & Design -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+          ✨ ${lang === 'ar' ? 'تصميم التطبيق' : 'App Design Theme'}
+        </h3>
+        <div class="input-group">
+          <label>${lang === 'ar' ? 'اختر قالب التصميم' : 'Select Design Template'}</label>
+          <select id="si-app-theme" style="padding: 0.75rem; font-size: 1.1rem;">
+            <option value="light" ${s.app_theme === 'light' ? 'selected' : ''}>🟢 الأسواق (الافتراضي الأخضر)</option>
+            <option value="dark" ${s.app_theme === 'dark' ? 'selected' : ''}>🌙 الوضع الداكن الاحترافي</option>
+            <option value="blue" ${s.app_theme === 'blue' ? 'selected' : ''}>🔵 الأزرق الاحترافي</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Save Button -->
       <div style="display: flex; justify-content: flex-end; gap: 1rem; align-items: center;">
         <span id="si-status" class="status-message"></span>
-        <button id="si-save-btn" class="btn-primary" style="min-width: 180px;">
+        <button id="si-save-btn" class="btn-primary" style="min-width: 180px; font-size: 1.2rem;">
           💾 ${t.save}
         </button>
       </div>
@@ -198,7 +213,8 @@ function renderSettings(container) {
       instagram_url: document.getElementById('si-instagram').value.trim(),
       tiktok_url: document.getElementById('si-tiktok').value.trim(),
       logo_url: storeInfo.logo_url || '',
-      hero_image_url: storeInfo.hero_image_url || ''
+      hero_image_url: storeInfo.hero_image_url || '',
+      app_theme: document.getElementById('si-app-theme').value
     }
 
     const { error } = await supabase
@@ -211,6 +227,14 @@ function renderSettings(container) {
       storeInfo = payload
       status.textContent = t.store_saved_success
       status.classList.add('visible', 'success')
+      
+      // Apply theme immediately
+      if (payload.app_theme === 'light') {
+        document.documentElement.removeAttribute('data-theme')
+      } else {
+        document.documentElement.setAttribute('data-theme', payload.app_theme)
+      }
+
       setTimeout(() => {
         status.classList.remove('visible', 'success')
         status.textContent = ''
