@@ -231,6 +231,9 @@ function renderTrackingTable() {
             <button class="btn-secondary delete-tracking-btn" data-id="${d.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);">
               ${t.delete}
             </button>
+            <button class="btn-secondary delete-all-branches-btn" data-name="${d.product_name}" data-date="${d.tracking_date}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error); border-color: var(--error);" title="${lang === 'ar' ? 'حذف من جميع الفروع' : 'Delete from all branches'}">
+              ${lang === 'ar' ? '🗑️ الكل' : '🗑️ All'}
+            </button>
           </div>
         </td>
       </tr>
@@ -271,13 +274,36 @@ function renderTrackingTable() {
     })
   })
 
-  // Attach delete events
+  // Attach delete events (single branch)
   tbody.querySelectorAll('.delete-tracking-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (await Dialog.confirm(t.confirm_delete)) {
         const { error } = await supabase.from('daily_tracking').delete().eq('id', btn.dataset.id)
         if (!error) {
           await fetchTrackingData()
+        }
+      }
+    })
+  })
+
+  // Attach delete-from-all-branches events
+  tbody.querySelectorAll('.delete-all-branches-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const productName = btn.dataset.name
+      const trackDate = btn.dataset.date
+      const confirmMsg = lang === 'ar' 
+        ? `هل أنت متأكد أنك تريد حذف "${productName}" من جميع الفروع؟`
+        : `Are you sure you want to delete "${productName}" from ALL branches?`
+      if (await Dialog.confirm(confirmMsg)) {
+        const { error } = await supabase
+          .from('daily_tracking')
+          .delete()
+          .eq('product_name', productName)
+          .eq('tracking_date', trackDate)
+        if (!error) {
+          await fetchTrackingData()
+        } else {
+          await Dialog.alert('Error: ' + error.message)
         }
       }
     })
@@ -312,12 +338,6 @@ function openTrackingModal() {
         <div class="modal-body">
           <form id="tracking-form">
             <div class="form-grid">
-              <div class="input-group">
-                <label>${t.branch}</label>
-                <select name="branch_id" required class="form-textarea" style="min-height: 48px; padding: 0.5rem 1rem;">
-                  ${branchOptions}
-                </select>
-              </div>
               <div class="input-group">
                 <label>${t.date}</label>
                 <input type="date" name="tracking_date" required value="${selectedDate}">
@@ -412,17 +432,23 @@ function openTrackingModal() {
       }
     }
 
-    const payload = {
-      branch_id: formData.get('branch_id'),
+    const trackingDate = formData.get('tracking_date')
+    const soldQty = parseFloat(formData.get('sold_qty')) || 0
+    const removedQty = parseFloat(formData.get('removed_qty')) || 0
+    const notes = formData.get('notes') || null
+
+    // Add for ALL active branches
+    const payloads = branches.map(branch => ({
+      branch_id: branch.id,
       product_id: productId,
       product_name: productName,
-      tracking_date: formData.get('tracking_date'),
-      sold_qty: parseFloat(formData.get('sold_qty')) || 0,
-      removed_qty: parseFloat(formData.get('removed_qty')) || 0,
-      notes: formData.get('notes') || null
-    }
+      tracking_date: trackingDate,
+      sold_qty: soldQty,
+      removed_qty: removedQty,
+      notes: notes
+    }))
 
-    const { error } = await supabase.from('daily_tracking').insert([payload])
+    const { error } = await supabase.from('daily_tracking').insert(payloads)
 
     if (error) {
       await Dialog.alert('Error: ' + error.message)
