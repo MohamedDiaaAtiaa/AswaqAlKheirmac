@@ -114,84 +114,96 @@ export async function loadBranchSales(container, souqMode = false) {
 }
 
 async function fetchSalesData() {
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const tbody = document.getElementById('bs-tbody')
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; font-size: 1.2rem;">${translations[localStorage.getItem('aswaq_lang') || 'ar'].loading}</td></tr>`
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; font-size: 1.2rem;">${translations[lang].loading}</td></tr>`
 
-  if (isSouqView && selectedBranchId === 'all') {
-    // Aggregated view
-    const { data, error } = await supabase
-      .from('branch_sales')
-      .select('*')
-      .eq('sale_date', selectedDate)
+  // 1. Fetch all sales for the selected date to build the unified item list
+  const { data: allSales, error } = await supabase
+    .from('branch_sales')
+    .select('*')
+    .eq('sale_date', selectedDate)
 
-    if (error) {
-      console.error(error)
-      salesData = []
-      renderTable()
-      return
+  if (error) {
+    console.error(error)
+    salesData = []
+    renderTable()
+    return
+  }
+
+  // 2. Extract unique products entered by ANY branch on this date
+  const uniqueProducts = []
+  allSales.forEach(row => {
+    if (row.product_name && !uniqueProducts.find(p => p.product_name === row.product_name)) {
+      uniqueProducts.push({
+        product_name: row.product_name,
+        category_id: row.category_id,
+        image_url: row.image_url,
+        emoji: row.emoji || '📦'
+      })
     }
+  })
 
-    // Aggregate by product_name
+  // 3. Render logic
+  if (isSouqView && selectedBranchId === 'all') {
     const aggregated = {}
     
-    if (data && data.length > 0) {
-      data.forEach(row => {
-        const name = row.product_name
-        if (!name) return
-        
-        if (!aggregated[name]) {
-          aggregated[name] = {
-            is_aggregated: true,
-            product_name: name,
-            display_name: name,
-            emoji: '📦',
-            image_url: null,
-            quantity: 0,
-            count: 0,
-            price: 0,
-            meshal: 0,
-            total: 0
-          }
-        }
-        
-        aggregated[name].quantity += (row.quantity || 0)
-        aggregated[name].count += (parseFloat(row.count) || 0)
-        aggregated[name].meshal += (parseFloat(row.meshal) || 0)
-        
+    uniqueProducts.forEach(up => {
+      aggregated[up.product_name] = {
+        is_aggregated: true,
+        product_name: up.product_name,
+        display_name: up.product_name,
+        emoji: up.emoji,
+        image_url: up.image_url,
+        category_id: up.category_id,
+        quantity: 0, count: 0, price: 0, meshal: 0, total: 0
+      }
+    })
+
+    allSales.forEach(row => {
+      const target = aggregated[row.product_name]
+      if (target) {
+        target.quantity += (row.quantity || 0)
+        target.count += (parseFloat(row.count) || 0)
+        target.meshal += (parseFloat(row.meshal) || 0)
         const w = parseFloat(row.count) || 0
         const p = parseFloat(row.price) || 0
         const m = parseFloat(row.meshal) || 0
-        aggregated[name].total += (w * p) + m
-      })
-    }
-    
-    salesData = Object.values(aggregated)
-    renderTable()
+        target.total += (w * p) + m
+      }
+    })
 
+    salesData = Object.values(aggregated)
   } else {
     // Specific branch view
     const branchToFetch = isSouqView ? selectedBranchId : (localStorage.getItem('aswaq_branch_id') || '')
+    const branchSales = allSales.filter(r => r.branch_id === branchToFetch)
     
-    const { data, error } = await supabase
-      .from('branch_sales')
-      .select('*')
-      .eq('branch_id', branchToFetch)
-      .eq('sale_date', selectedDate)
-
-    if (error) {
-       console.error(error)
-       salesData = []
-    } else {
-       salesData = (data || []).map(r => ({
-         ...r,
-         display_name: r.product_name,
-         emoji: '📦',
-         image_url: null
-       }))
-    }
-    
-    renderTable()
+    salesData = uniqueProducts.map(up => {
+      const existing = branchSales.find(r => r.product_name === up.product_name)
+      if (existing) {
+        return {
+          ...existing,
+          display_name: existing.product_name,
+          emoji: existing.emoji || up.emoji,
+          image_url: existing.image_url || up.image_url
+        }
+      } else {
+        return {
+          branch_id: branchToFetch,
+          sale_date: selectedDate,
+          product_name: up.product_name,
+          category_id: up.category_id,
+          display_name: up.product_name,
+          emoji: up.emoji,
+          image_url: up.image_url,
+          quantity: 0, count: 0, price: 0, meshal: 0
+        }
+      }
+    })
   }
+
+  renderTable()
 }
 
 function renderTable() {
@@ -312,8 +324,30 @@ function renderTable() {
         return
       }
 
+      // If user typed a new product name and it doesn't have a category, add it to global categories!
+      if (field === 'product_name' && !row.category_id) {
+        const existingCat = categories.find(c => c.label_ar === value || c.label_en === value)
+        if (!existingCat) {
+          const catId = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || ('cat_' + Date.now())
+          const finalId = categories.find(c => c.id === catId) ? catId + '_' + Date.now() : catId
+          const newCat = { id: finalId, label_ar: value, label_en: value, emoji: '📦', image_url: '' }
+          categories.push(newCat)
+          row.category_id = finalId
+          
+          // Save to global app_settings
+          supabase.from('app_settings').upsert({ key: 'categories', value: categories }, { onConflict: 'key' }).then(() => {
+            console.log('Category added globally')
+          })
+        } else {
+          row.category_id = existingCat.id
+        }
+      }
+
       if (id) {
-        const { error } = await supabase.from('branch_sales').update({ [field]: value }).eq('id', id)
+        const payload = { [field]: value }
+        if (field === 'product_name') payload.category_id = row.category_id
+        
+        const { error } = await supabase.from('branch_sales').update(payload).eq('id', id)
         if (error) Dialog.alert('Error: ' + error.message)
       } else {
         const { data: upserted, error } = await supabase
@@ -322,6 +356,7 @@ function renderTable() {
             branch_id: branchToUpdate,
             sale_date: selectedDate,
             product_name: row.product_name,
+            category_id: row.category_id,
             quantity: row.quantity,
             count: row.count,
             price: row.price,
