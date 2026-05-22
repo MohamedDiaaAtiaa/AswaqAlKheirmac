@@ -83,10 +83,10 @@ export async function loadDailyTracking(container) {
     </div>
   `
 
+  document.getElementById('add-tracking-btn').addEventListener('click', () => openTrackingModal())
+
   await fetchBranchesForFilter()
   await fetchProductsList()
-
-  document.getElementById('add-tracking-btn').addEventListener('click', () => openTrackingModal())
 
   document.getElementById('tracking-branch-filter').addEventListener('change', (e) => {
     selectedBranchId = e.target.value || null
@@ -231,8 +231,11 @@ function renderTrackingTable() {
             <button class="btn-secondary delete-tracking-btn" data-id="${d.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);">
               ${t.delete}
             </button>
-            <button class="btn-secondary delete-all-branches-btn" data-name="${d.product_name}" data-date="${d.tracking_date}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error); border-color: var(--error);" title="${lang === 'ar' ? 'حذف من جميع الفروع' : 'Delete from all branches'}">
-              ${lang === 'ar' ? '🗑️ الكل' : '🗑️ All'}
+            <button class="btn-secondary delete-all-branches-btn" data-name="${d.product_name}" data-date="${d.tracking_date}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error); border-color: var(--error);" title="${lang === 'ar' ? 'حذف من جميع الفروع لهذا اليوم' : 'Delete from all branches for this day'}">
+              ${lang === 'ar' ? '🗑️ فروع اليوم' : '🗑️ Day Branches'}
+            </button>
+            <button class="btn-secondary delete-completely-btn" data-name="${d.product_name}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: white; background-color: var(--error); border-color: var(--error);" title="${lang === 'ar' ? 'إزالة المنتج نهائياً من التتبع' : 'Remove product completely from tracking'}">
+              ${lang === 'ar' ? 'إزالة نهائية' : 'Remove Completely'}
             </button>
           </div>
         </td>
@@ -300,6 +303,27 @@ function renderTrackingTable() {
           .delete()
           .eq('product_name', productName)
           .eq('tracking_date', trackDate)
+        if (!error) {
+          await fetchTrackingData()
+        } else {
+          await Dialog.alert('Error: ' + error.message)
+        }
+      }
+    })
+  })
+
+  // Attach delete completely events
+  tbody.querySelectorAll('.delete-completely-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const productName = btn.dataset.name
+      const confirmMsg = lang === 'ar' 
+        ? `تحذير: هل أنت متأكد أنك تريد إزالة "${productName}" نهائياً من التتبع في جميع الأيام وجميع الفروع؟ هذا الإجراء لا يمكن التراجع عنه.`
+        : `WARNING: Are you sure you want to completely remove "${productName}" from tracking across ALL days and ALL branches? This cannot be undone.`
+      if (await Dialog.confirm(confirmMsg)) {
+        const { error } = await supabase
+          .from('daily_tracking')
+          .delete()
+          .eq('product_name', productName)
         if (!error) {
           await fetchTrackingData()
         } else {

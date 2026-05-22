@@ -369,8 +369,8 @@ function openBranchModal(branch = null) {
       is_active: formData.get('is_active') === 'on',
       is_default: formData.get('is_default') === 'on',
       username: formData.get('username') || null,
-      password_hash: formData.get('password') ? formData.get('password') : null,
-      user_role: formData.get('user_role') || 'branch_manager'
+      password_hash: formData.get('password') ? formData.get('password') : null
+      // user_role: formData.get('user_role') || 'branch_manager' // Removed due to schema error
     }
 
     const id = formData.get('id')
