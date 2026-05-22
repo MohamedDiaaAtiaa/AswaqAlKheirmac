@@ -345,7 +345,6 @@ function renderTable() {
 
       if (id) {
         const payload = { [field]: value }
-        if (field === 'product_name') payload.category_id = row.category_id
         
         const { error } = await supabase.from('branch_sales').update(payload).eq('id', id)
         if (error) Dialog.alert('Error: ' + error.message)
@@ -356,7 +355,6 @@ function renderTable() {
             branch_id: branchToUpdate,
             sale_date: selectedDate,
             product_name: row.product_name,
-            category_id: row.category_id,
             quantity: row.quantity,
             count: row.count,
             price: row.price,
