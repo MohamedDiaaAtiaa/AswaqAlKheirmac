@@ -300,6 +300,48 @@ function renderTable() {
     </tr>
   `
 
+  // Helper: recalculate a single row's total and update grand totals in the footer
+  function recalcRowAndTotals(tr, index) {
+    const row = salesData[index]
+    if (!row || row.is_aggregated) return
+
+    const weight = parseFloat(row.count) || 0
+    const price = parseFloat(row.price) || 0
+    const meshal = parseFloat(row.meshal) || 0
+    const total = (weight * price) + meshal
+
+    // Update the total cell in this row (7th column, index 6)
+    const totalCell = tr.querySelectorAll('td')[6]
+    if (totalCell) totalCell.textContent = total.toFixed(2)
+
+    // Recalculate grand totals across all rows
+    let grandBayaawaMeshal = 0
+    let grandTotal = 0
+    salesData.forEach((r, i) => {
+      const w = parseFloat(r.count) || 0
+      const p = parseFloat(r.price) || 0
+      const m = parseFloat(r.meshal) || 0
+      let t = 0
+      if (r.is_aggregated) {
+        t = r.total || 0
+      } else {
+        t = (w * p) + m
+      }
+      grandBayaawaMeshal += m
+      grandTotal += t
+    })
+
+    const tfoot = document.getElementById('bs-tfoot')
+    if (tfoot) {
+      const footerCells = tfoot.querySelectorAll('td')
+      if (footerCells.length >= 3) {
+        // Update meshal total (2nd cell) and grand total (3rd cell)
+        footerCells[1].innerHTML = `${grandBayaawaMeshal.toFixed(2)}<div style="font-size:0.85rem;font-weight:600;color:var(--text-muted);">${t.bs_daily_meshal || 'المشال'}</div>`
+        footerCells[2].textContent = grandTotal.toFixed(2)
+      }
+    }
+  }
+
   tbody.querySelectorAll('.bs-cell-input').forEach(input => {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -308,13 +350,33 @@ function renderTable() {
       }
     });
 
+    // Real-time calculation as the user types
+    input.addEventListener('input', () => {
+      if (input.readOnly) return
+      const tr = input.closest('tr')
+      const index = parseInt(tr.dataset.index)
+      const field = input.dataset.field
+      const row = salesData[index]
+      if (!row) return
+
+      if (field !== 'product_name') {
+        let val = String(input.value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+        row[field] = parseFloat(val) || 0
+      } else {
+        row[field] = input.value
+        row.display_name = input.value
+      }
+
+      recalcRowAndTotals(tr, index)
+    })
+
+    // Save to database on blur/change
     input.addEventListener('change', async () => {
       if (input.readOnly) return
 
       const tr = input.closest('tr')
-      const index = tr.dataset.index
+      const index = parseInt(tr.dataset.index)
       const id = tr.dataset.id
-      const catId = tr.dataset.catid
       const field = input.dataset.field
       let value = input.value
       if (field !== 'product_name') {
@@ -325,6 +387,9 @@ function renderTable() {
       const row = salesData[index]
       row[field] = value
       
+      // Update the total cell immediately
+      recalcRowAndTotals(tr, index)
+
       const branchToUpdate = isSouqView ? selectedBranchId : (localStorage.getItem('aswaq_branch_id') || '')
 
       if (!row.product_name) {
@@ -377,7 +442,7 @@ function renderTable() {
           tr.dataset.id = row.id
         }
       }
-      renderTable()
+      // Don't call renderTable() here — it destroys the inputs and loses focus
     })
   })
 
