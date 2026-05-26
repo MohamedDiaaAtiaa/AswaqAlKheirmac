@@ -259,29 +259,29 @@ function renderTable() {
       <td>
         ${isAggregated ? 
           `<div style="font-size: 1.2rem; font-weight: bold; text-align: center;">${row.quantity}</div>` : 
-          `<input type="number" class="bs-cell-input" data-field="quantity" value="${row.quantity || 0}" 
-          ${canEditQuantity ? '' : 'readonly'} min="0" style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
+          `<input type="text" inputmode="decimal" class="bs-cell-input" data-field="quantity" value="${row.quantity || 0}" 
+          ${canEditQuantity ? '' : 'readonly'} style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
         }
       </td>
       <td>
         ${isAggregated ? 
           `<div style="font-size: 1.2rem; font-weight: bold; text-align: center;">${weight.toFixed(2)}</div>` : 
-          `<input type="number" step="0.01" class="bs-cell-input" data-field="count" value="${weight.toFixed(2)}" 
-          ${canEditCountAndMeshal ? '' : 'readonly'} min="0" style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
+          `<input type="text" inputmode="decimal" class="bs-cell-input" data-field="count" value="${weight.toFixed(2)}" 
+          ${canEditCountAndMeshal ? '' : 'readonly'} style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
         }
       </td>
       <td>
         ${isAggregated ? 
           `<div style="font-size: 1.2rem; text-align: center; color: var(--text-muted);">-</div>` : 
-          `<input type="number" step="0.01" class="bs-cell-input" data-field="price" value="${price.toFixed(2)}" 
-          ${canEditPrice ? '' : 'readonly'} min="0" style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
+          `<input type="text" inputmode="decimal" class="bs-cell-input" data-field="price" value="${price.toFixed(2)}" 
+          ${canEditPrice ? '' : 'readonly'} style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
         }
       </td>
       <td>
         ${isAggregated ? 
           `<div style="font-size: 1.2rem; font-weight: bold; text-align: center;">${bayaawaMeshal.toFixed(2)}</div>` : 
-          `<input type="number" step="0.01" class="bs-cell-input" data-field="meshal" value="${bayaawaMeshal.toFixed(2)}" 
-          ${canEditCountAndMeshal ? '' : 'readonly'} min="0" style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
+          `<input type="text" inputmode="decimal" class="bs-cell-input" data-field="meshal" value="${bayaawaMeshal.toFixed(2)}" 
+          ${canEditCountAndMeshal ? '' : 'readonly'} style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
         }
       </td>
       <td style="font-weight: 800; font-size: 1.2rem; color: var(--success, #22c55e);">${total.toFixed(2)}</td>
@@ -301,6 +301,13 @@ function renderTable() {
   `
 
   tbody.querySelectorAll('.bs-cell-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+
     input.addEventListener('change', async () => {
       if (input.readOnly) return
 
@@ -311,6 +318,7 @@ function renderTable() {
       const field = input.dataset.field
       let value = input.value
       if (field !== 'product_name') {
+        value = String(value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
         value = parseFloat(value) || 0
       }
 

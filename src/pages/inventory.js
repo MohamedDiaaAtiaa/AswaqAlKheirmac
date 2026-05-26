@@ -196,7 +196,7 @@ function renderTable(searchQuery = '') {
       <td>
         <div class="stock-manager">
           <button class="stock-btn minus" data-id="${p.id}" data-table="${p._table}">-</button>
-          <input type="number" class="stock-input" value="${p.stock || 0}" data-id="${p.id}" data-table="${p._table}">
+          <input type="text" inputmode="decimal" class="stock-input" value="${p.stock || 0}" data-id="${p.id}" data-table="${p._table}">
           <button class="stock-btn plus" data-id="${p.id}" data-table="${p._table}">+</button>
           <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; font-weight: 600;">${p.unit ? t['unit_' + p.unit] || p.unit : t.unit_item}</span>
         </div>
@@ -230,10 +230,17 @@ function renderTable(searchQuery = '') {
   })
 
   tbody.querySelectorAll('.stock-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
     input.addEventListener('change', async () => {
       const id = input.dataset.id
       const table = input.dataset.table
-      const newStock = Math.max(0, parseInt(input.value) || 0)
+      let val = String(input.value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+      const newStock = Math.max(0, parseInt(val) || 0)
       await updateStock(id, table, newStock)
     })
   })
@@ -480,7 +487,12 @@ function openEditModal(product = null) {
   }
 
   window.updateFullVariant = (idx, field, val) => {
-    variants[idx][field] = field === 'price' ? parseFloat(val) || 0 : val
+    if (field === 'price') {
+      let numVal = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+      variants[idx][field] = parseFloat(numVal) || 0;
+    } else {
+      variants[idx][field] = val;
+    }
   }
   window.removeFullVariant = (idx) => {
     variants.splice(idx, 1)
@@ -506,7 +518,7 @@ function openEditModal(product = null) {
       name_en: formData.get('name_en'),
       category: formData.get('category'),
       unit: formData.get('unit'),
-      stock: parseInt(formData.get('stock')) || 0,
+      stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
       emoji: formData.get('emoji'),
       sizes: variants,
       branch_id: null // Explicitly null for Souq
@@ -723,7 +735,12 @@ function openPriceEditModal(product) {
 
   window.updateVariant = (idx, field, val) => {
     if (field === 'price' || field === 'old_price') {
-      variants[idx][field] = val ? parseFloat(val) : null
+      if (!val) {
+        variants[idx][field] = null;
+      } else {
+        let numVal = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+        variants[idx][field] = parseFloat(numVal) || null;
+      }
     }
   }
 
@@ -751,7 +768,7 @@ function openPriceEditModal(product) {
     submitBtn.disabled = true
 
     const payload = {
-      stock: parseInt(formData.get('stock')) || 0,
+      stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
       sizes: variants
     }
 

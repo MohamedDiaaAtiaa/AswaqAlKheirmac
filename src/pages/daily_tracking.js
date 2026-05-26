@@ -209,12 +209,12 @@ function renderTrackingTable() {
         </td>
         <td>
           <div class="inline-edit-group">
-            <input type="number" class="inline-input sold-input" data-id="${d.id}" value="${d.sold_qty || 0}" step="0.1" min="0">
+            <input type="text" inputmode="decimal" class="inline-input sold-input" data-id="${d.id}" value="${d.sold_qty || 0}">
           </div>
         </td>
         <td>
           <div class="inline-edit-group">
-            <input type="number" class="inline-input removed-input" data-id="${d.id}" value="${d.removed_qty || 0}" step="0.1" min="0">
+            <input type="text" inputmode="decimal" class="inline-input removed-input" data-id="${d.id}" value="${d.removed_qty || 0}">
           </div>
         </td>
         <td>
@@ -248,8 +248,12 @@ function renderTrackingTable() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id
       const row = btn.closest('tr')
-      const soldQty = parseFloat(row.querySelector('.sold-input').value) || 0
-      const removedQty = parseFloat(row.querySelector('.removed-input').value) || 0
+      
+      let soldVal = String(row.querySelector('.sold-input').value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+      let removedVal = String(row.querySelector('.removed-input').value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+      
+      const soldQty = parseFloat(soldVal) || 0
+      const removedQty = parseFloat(removedVal) || 0
       const notes = row.querySelector('.notes-input').value
 
       btn.textContent = '...'
@@ -276,6 +280,18 @@ function renderTrackingTable() {
       btn.disabled = false
     })
   })
+
+  // Attach enter key to trigger save
+  tbody.querySelectorAll('.inline-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+        const btn = input.closest('tr').querySelector('.save-tracking-btn');
+        if (btn && !btn.disabled) btn.click();
+      }
+    });
+  });
 
   // Attach delete events (single branch)
   tbody.querySelectorAll('.delete-tracking-btn').forEach(btn => {
@@ -457,8 +473,8 @@ function openTrackingModal() {
     }
 
     const trackingDate = formData.get('tracking_date')
-    const soldQty = parseFloat(formData.get('sold_qty')) || 0
-    const removedQty = parseFloat(formData.get('removed_qty')) || 0
+    const soldQty = parseFloat(String(formData.get('sold_qty')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0
+    const removedQty = parseFloat(String(formData.get('removed_qty')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0
     const notes = formData.get('notes') || null
 
     // Add for ALL active branches
