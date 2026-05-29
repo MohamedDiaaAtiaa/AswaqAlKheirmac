@@ -14,7 +14,7 @@ export async function loadCategories(container) {
   container.innerHTML = `
     <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
       <h3 style="margin: 0 0 1.25rem 0; font-size: 1.2rem;">${t.add_category || 'إضافة فئة'}</h3>
-      <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 100px 100px auto; align-items: flex-end; gap: 0.75rem;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
         <div class="input-group" style="margin:0;">
           <label style="font-size: 0.85rem;">${t.category_id || 'المعرف'}</label>
           <input type="text" id="new-cat-id" placeholder="dairy" dir="ltr" style="font-size: 1rem; padding: 0.875rem;">
@@ -27,11 +27,27 @@ export async function loadCategories(container) {
           <label style="font-size: 0.85rem;">${t.category_name_en || 'الاسم (إنجليزي)'}</label>
           <input type="text" id="new-cat-label-en" placeholder="Dairy" dir="ltr" style="font-size: 1rem; padding: 0.875rem;">
         </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
         <div class="input-group" style="margin:0;">
-          <label style="font-size: 0.85rem;">الصورة (URL)</label>
-          <input type="text" id="new-cat-image" placeholder="https://" dir="ltr" style="font-size: 1rem; padding: 0.875rem;">
+          <label style="font-size: 0.85rem;">${t.description_ar || 'الوصف (عربي)'}</label>
+          <textarea id="new-cat-desc-ar" dir="rtl" style="font-size: 1rem; padding: 0.875rem; width: 100%; resize: vertical; min-height: 80px;"></textarea>
         </div>
         <div class="input-group" style="margin:0;">
+          <label style="font-size: 0.85rem;">${t.description_en || 'الوصف (إنجليزي)'}</label>
+          <textarea id="new-cat-desc-en" dir="ltr" style="font-size: 1rem; padding: 0.875rem; width: 100%; resize: vertical; min-height: 80px;"></textarea>
+        </div>
+      </div>
+      <div style="display: flex; gap: 1rem; align-items: flex-end;">
+        <div class="input-group" style="margin:0; flex: 1;">
+          <label style="font-size: 0.85rem;">الصورة</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center; background: #fff; padding: 0.25rem; border: 1px solid var(--border); border-radius: 8px;">
+            <div id="new-cat-img-preview" style="width: 40px; height: 40px; background: #eee; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 12px;">📷</div>
+            <input type="file" accept="image/*" onchange="uploadCategoryImage(this, 'new-cat-img-preview', 'new-cat-image')" style="flex: 1; font-size: 0.85rem;">
+            <input type="hidden" id="new-cat-image" value="">
+          </div>
+        </div>
+        <div class="input-group" style="margin:0; width: 100px;">
           <label style="font-size: 0.85rem;">${t.category_emoji || 'الرمز'}</label>
           <input type="text" id="new-cat-emoji" placeholder="🥛" style="font-size: 1.2rem; padding: 0.875rem;">
         </div>
@@ -62,6 +78,25 @@ export async function loadCategories(container) {
   renderCategoriesTable()
 
   document.getElementById('add-cat-btn').addEventListener('click', handleAddCategory)
+
+  window.uploadCategoryImage = async (input, previewId, hiddenInputId) => {
+    const file = input.files[0]
+    if (!file) return
+    input.disabled = true
+    const fileName = `category-${Date.now()}-${file.name}`
+    const { data, error } = await supabase.storage.from('product-images').upload(fileName, file)
+    if (!error) {
+       const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(fileName)
+       document.getElementById(hiddenInputId).value = publicUrl
+       const preview = document.getElementById(previewId)
+       if(preview) {
+         preview.innerHTML = `<img src="${publicUrl}" style="max-width:100%; height:100%; object-fit:cover;">`
+       }
+    } else {
+      await Dialog.alert('Upload failed: ' + error.message)
+    }
+    input.disabled = false
+  }
 }
 
 async function fetchCategories() {
@@ -152,22 +187,43 @@ async function handleAddCategory() {
   const idInput = document.getElementById('new-cat-id')
   const labelArInput = document.getElementById('new-cat-label-ar')
   const labelEnInput = document.getElementById('new-cat-label-en')
+  const descArInput = document.getElementById('new-cat-desc-ar')
+  const descEnInput = document.getElementById('new-cat-desc-en')
   const emojiInput = document.getElementById('new-cat-emoji')
   const imageInput = document.getElementById('new-cat-image')
+  const imgPreview = document.getElementById('new-cat-img-preview')
 
   const idVal = idInput.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
   const labelArVal = labelArInput.value.trim()
   const labelEnVal = labelEnInput.value.trim()
+  const descArVal = descArInput.value.trim()
+  const descEnVal = descEnInput.value.trim()
   const emojiVal = emojiInput.value.trim() || '🛒'
   const imageVal = imageInput.value.trim()
 
   if (idVal && (labelArVal || labelEnVal) && !categories.find(c => c.id === idVal)) {
-    categories.push({ id: idVal, label_ar: labelArVal, label_en: labelEnVal, emoji: emojiVal, image_url: imageVal })
+    categories.push({ 
+      id: idVal, 
+      label_ar: labelArVal, 
+      label_en: labelEnVal, 
+      description_ar: descArVal,
+      description_en: descEnVal,
+      emoji: emojiVal, 
+      image_url: imageVal 
+    })
     idInput.value = ''
     labelArInput.value = ''
     labelEnInput.value = ''
+    descArInput.value = ''
+    descEnInput.value = ''
     emojiInput.value = ''
     imageInput.value = ''
+    if (imgPreview) imgPreview.innerHTML = '📷'
+    
+    // Clear the file input
+    const fileInput = document.querySelector('input[type="file"]')
+    if (fileInput) fileInput.value = ''
+
     await saveCategories()
     renderCategoriesTable()
   } else {
@@ -182,7 +238,7 @@ function openEditCategoryModal(index) {
 
   const modalHtml = `
     <div class="modal-overlay" id="edit-cat-overlay">
-      <div class="modal" style="max-width: 500px;">
+      <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
           <h3>${t.edit || 'تعديل الفئة'}</h3>
           <button id="close-cat-modal" class="close-btn">&times;</button>
@@ -205,12 +261,28 @@ function openEditCategoryModal(index) {
             </div>
             <div class="form-grid">
               <div class="input-group">
+                <label>${t.description_ar || 'الوصف (عربي)'}</label>
+                <textarea name="description_ar" dir="rtl" style="font-size: 1rem; padding: 0.875rem; width: 100%; resize: vertical; min-height: 80px;">${cat.description_ar || ''}</textarea>
+              </div>
+              <div class="input-group">
+                <label>${t.description_en || 'الوصف (إنجليزي)'}</label>
+                <textarea name="description_en" dir="ltr" style="font-size: 1rem; padding: 0.875rem; width: 100%; resize: vertical; min-height: 80px;">${cat.description_en || ''}</textarea>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="input-group">
                 <label>${t.category_emoji || 'الرمز'}</label>
                 <input type="text" name="emoji" value="${cat.emoji || ''}" dir="ltr">
               </div>
               <div class="input-group">
-                <label>الصورة (URL)</label>
-                <input type="text" name="image_url" value="${cat.image_url || ''}" dir="ltr" placeholder="https://...">
+                <label>الصورة</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center; background: #fff; padding: 0.25rem; border: 1px solid var(--border); border-radius: 8px;">
+                  <div id="edit-cat-img-preview" style="width: 40px; height: 40px; background: #eee; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    ${cat.image_url ? `<img src="${cat.image_url}" style="max-width:100%; height:100%; object-fit:cover;">` : '📷'}
+                  </div>
+                  <input type="file" accept="image/*" onchange="uploadCategoryImage(this, 'edit-cat-img-preview', 'edit-cat-image')" style="flex: 1; font-size: 0.85rem;">
+                  <input type="hidden" id="edit-cat-image" name="image_url" value="${cat.image_url || ''}">
+                </div>
               </div>
             </div>
           </form>
@@ -236,6 +308,8 @@ function openEditCategoryModal(index) {
     
     categories[index].label_ar = formData.get('label_ar').trim()
     categories[index].label_en = formData.get('label_en').trim()
+    categories[index].description_ar = formData.get('description_ar').trim()
+    categories[index].description_en = formData.get('description_en').trim()
     categories[index].emoji = formData.get('emoji').trim() || '📦'
     categories[index].image_url = formData.get('image_url').trim()
 
