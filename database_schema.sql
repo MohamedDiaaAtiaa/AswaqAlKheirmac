@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_phone TEXT,
   customer_address TEXT,
   payment_method TEXT,
+  transaction_screenshot_url TEXT,
+  payment_proof_type TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -359,6 +361,13 @@ CREATE POLICY "Anyone can view product images"
 CREATE POLICY "Admins can upload product images"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'product-images' AND check_is_admin());
+
+CREATE POLICY "Anyone can upload receipts"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'product-images' 
+    AND (storage.foldername(name))[1] = 'receipts'
+  );
 
 CREATE POLICY "Admins can update product images"
   ON storage.objects FOR UPDATE

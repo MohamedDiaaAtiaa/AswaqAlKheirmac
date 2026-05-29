@@ -244,6 +244,38 @@ function openOrderModal(order) {
             </div>
           </div>
 
+          <div style="margin-bottom: 1.5rem;">
+            <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;">${lang === 'ar' ? 'معلومات الدفع' : 'Payment Information'}</h4>
+            <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--bg-hover);">
+              <span style="color: var(--text-muted); font-size: 0.85rem;">${lang === 'ar' ? 'الطريقة' : 'Method'}</span>
+              <span style="font-weight: 600; font-size: 0.85rem; text-transform: capitalize;">${order.payment_method || 'cod'}</span>
+            </div>
+            
+            ${order.transaction_screenshot_url ? `
+            <div style="margin-top: 1rem; border: 1px solid var(--border); padding: 12px; border-radius: 8px; background-color: var(--bg-hover);">
+              <span style="color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 8px; font-weight: 600;">
+                ${lang === 'ar' ? '📸 إيصال الدفع (إنستاباي)' : '📸 Instapay Receipt'}
+              </span>
+              <div style="margin-bottom: 10px; overflow: hidden; border-radius: 6px; border: 1px solid var(--border); background: #000; text-align: center; display: flex; align-items: center; justify-content: center; height: 180px;">
+                <img src="${order.transaction_screenshot_url}" style="max-width: 100%; max-height: 180px; object-fit: contain; vertical-align: middle;" alt="Receipt" />
+              </div>
+              <a href="${order.transaction_screenshot_url}" target="_blank" class="btn-primary" style="display: block; text-align: center; text-decoration: none; font-size: 0.85rem; padding: 8px 12px; border-radius: 6px; font-weight: 600; color: white;">
+                ${lang === 'ar' ? 'عرض بالحجم الكامل 🔍' : 'View Full Image 🔍'}
+              </a>
+            </div>
+            ` : order.payment_proof_type === 'pay_delivery' ? `
+            <div style="margin-top: 0.75rem; padding: 12px; border-radius: 8px; background-color: #ebf5ff; border: 1px solid #cce4ff; color: #004085; font-size: 0.85rem; font-weight: 600; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <span>🛵</span>
+              <span>${lang === 'ar' ? 'سيدفع لمندوب التوصيل عبر إنستاباي عند الاستلام' : 'Will pay the delivery person via Instapay upon arrival'}</span>
+            </div>
+            ` : order.notes ? `
+            <div style="margin-top: 0.5rem; padding: 8px 0;">
+              <span style="color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">${lang === 'ar' ? 'ملاحظات' : 'Notes'}</span>
+              <span style="font-size: 0.85rem; font-weight: 500;">${order.notes}</span>
+            </div>
+            ` : ''}
+          </div>
+
           <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px dashed var(--border);">
             <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.75rem; color: var(--text-muted);">${t.status}</label>
             <div style="display: flex; gap: 0.75rem;">

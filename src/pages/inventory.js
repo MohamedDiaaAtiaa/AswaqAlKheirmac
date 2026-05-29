@@ -459,6 +459,21 @@ function openEditModal(product = null) {
                 <input type="text" name="emoji" value="${product?.emoji || '🛒'}">
               </div>
             </div>
+            <div class="form-grid">
+              <div class="input-group" style="grid-column: span 2;">
+                <label>${t.product_image}</label>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                  <div id="product-image-preview" style="width: 60px; height: 60px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: var(--surface-hover);">
+                    ${product?.image_url ? `<img src="${product.image_url}" style="width: 100%; height: 100%; object-fit: cover;">` : '<span style="color: var(--text-muted); font-size: 24px;">📷</span>'}
+                  </div>
+                  <div style="flex: 1;">
+                    <input type="file" id="product-image-upload" accept="image/*" style="display: none;">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('product-image-upload').click()">${t.upload_logo || 'Upload Image'}</button>
+                    <input type="hidden" name="image_url" id="product-image-url" value="${product?.image_url || ''}">
+                  </div>
+                </div>
+              </div>
+            </div>
             <hr>
             <div id="full-variants-container"></div>
             <button type="button" id="add-variant-btn" class="btn-secondary" style="margin-top:0.5rem;">+ ${t.add_variant}</button>
@@ -506,6 +521,35 @@ function openEditModal(product = null) {
     renderVariants()
   })
 
+  document.getElementById('product-image-upload')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    const preview = document.getElementById('product-image-preview')
+    preview.innerHTML = '<span style="font-size: 0.8rem; color: var(--text-muted);">' + t.loading + '</span>'
+    
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+    const filePath = `public/${fileName}`
+    
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(filePath, file)
+      
+    if (uploadError) {
+      Dialog.alert('Image upload failed: ' + uploadError.message)
+      preview.innerHTML = '<span style="color: var(--text-muted); font-size: 24px;">📷</span>'
+      return
+    }
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('product-images')
+      .getPublicUrl(filePath)
+      
+    document.getElementById('product-image-url').value = publicUrl
+    preview.innerHTML = `<img src="${publicUrl}" style="width: 100%; height: 100%; object-fit: cover;">`
+  })
+
   document.getElementById('close-full-modal').addEventListener('click', () => overlay.remove())
   document.getElementById('cancel-full-modal').addEventListener('click', () => overlay.remove())
 
@@ -520,6 +564,7 @@ function openEditModal(product = null) {
       unit: formData.get('unit'),
       stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
       emoji: formData.get('emoji'),
+      image_url: formData.get('image_url') || null,
       sizes: variants,
       branch_id: null // Explicitly null for Souq
     }
