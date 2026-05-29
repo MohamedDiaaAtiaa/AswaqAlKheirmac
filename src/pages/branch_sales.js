@@ -5,6 +5,7 @@ import { Dialog } from '../lib/dialog.js'
 let salesData = []
 let branches = []
 let categories = []
+let souqProducts = []
 let isSouqView = false
 let selectedBranchId = 'all' // default to all for souq
 let selectedDate = new Date().toISOString().split('T')[0]
@@ -22,13 +23,36 @@ export async function loadBranchSales(container, souqMode = false) {
   `
 
   // Fetch branches and categories
-  const [branchesRes, categoriesRes] = await Promise.all([
+  const [branchesRes, categoriesRes, souqProductsRes] = await Promise.all([
     supabase.from('branches').select('id, name, name_en').eq('is_active', true),
-    supabase.from('app_settings').select('value').eq('key', 'categories').single()
+    supabase.from('app_settings').select('value').eq('key', 'categories').single(),
+    supabase.from('app_settings').select('value').eq('key', 'souq_products').single()
   ])
 
   branches = branchesRes.data || []
   categories = categoriesRes.data?.value || []
+  
+  if (souqProductsRes.data) {
+    souqProducts = souqProductsRes.data.value || []
+  } else {
+    // Initialize souq_products from May 22nd as requested
+    const { data: may22 } = await supabase.from('branch_sales').select('*').eq('sale_date', '2026-05-22')
+    if (may22 && may22.length > 0) {
+      const unique = new Set()
+      may22.forEach(r => {
+        if (r.product_name && !unique.has(r.product_name)) {
+          unique.add(r.product_name)
+          souqProducts.push({
+            product_name: r.product_name,
+            category_id: r.category_id,
+            image_url: r.product_image_url || r.image_url,
+            emoji: r.emoji || '📦'
+          })
+        }
+      })
+      await supabase.from('app_settings').upsert({ key: 'souq_products', value: souqProducts }, { onConflict: 'key' })
+    }
+  }
 
   const currentBranchId = localStorage.getItem('aswaq_branch_id') || ''
   if (!isSouqView) {
@@ -131,8 +155,10 @@ async function fetchSalesData() {
     return
   }
 
-  // 2. Extract unique products entered by ANY branch on this date
-  const uniqueProducts = []
+  // 2. Extract unique products starting from our permanent Souq template
+  const uniqueProducts = [...souqProducts]
+  
+  // Add any products from today's sales that might not be in the template yet
   allSales.forEach(row => {
     if (row.product_name && !uniqueProducts.find(p => p.product_name === row.product_name)) {
       uniqueProducts.push({
@@ -397,22 +423,36 @@ function renderTable() {
         return
       }
 
-      // If user typed a new product name and it doesn't have a category, add it to global categories!
-      if (field === 'product_name' && !row.category_id) {
-        const existingCat = categories.find(c => c.label_ar === value || c.label_en === value)
-        if (!existingCat) {
-          const catId = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || ('cat_' + Date.now())
-          const finalId = categories.find(c => c.id === catId) ? catId + '_' + Date.now() : catId
-          const newCat = { id: finalId, label_ar: value, label_en: value, emoji: '📦', image_url: '' }
-          categories.push(newCat)
-          row.category_id = finalId
-          
-          // Save to global app_settings
-          supabase.from('app_settings').upsert({ key: 'categories', value: categories }, { onConflict: 'key' }).then(() => {
-            console.log('Category added globally')
+      if (field === 'product_name') {
+        const existingSouq = souqProducts.find(p => p.product_name === value)
+        if (!existingSouq) {
+          souqProducts.push({
+            product_name: value,
+            category_id: row.category_id,
+            image_url: row.image_url,
+            emoji: row.emoji || '📦'
           })
-        } else {
-          row.category_id = existingCat.id
+          supabase.from('app_settings').upsert({ key: 'souq_products', value: souqProducts }, { onConflict: 'key' }).then(() => {
+            console.log('Added to Souq template')
+          })
+        }
+
+        if (!row.category_id) {
+          const existingCat = categories.find(c => c.label_ar === value || c.label_en === value)
+          if (!existingCat) {
+            const catId = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || ('cat_' + Date.now())
+            const finalId = categories.find(c => c.id === catId) ? catId + '_' + Date.now() : catId
+            const newCat = { id: finalId, label_ar: value, label_en: value, emoji: '📦', image_url: '' }
+            categories.push(newCat)
+            row.category_id = finalId
+            
+            // Save to global app_settings
+            supabase.from('app_settings').upsert({ key: 'categories', value: categories }, { onConflict: 'key' }).then(() => {
+              console.log('Category added globally')
+            })
+          } else {
+            row.category_id = existingCat.id
+          }
         }
       }
 
@@ -450,6 +490,7 @@ function renderTable() {
     btn.addEventListener('click', async () => {
       const index = btn.dataset.index
       const id = btn.dataset.id
+      const row = salesData[index]
       
       if (await Dialog.confirm(t.confirm_delete || 'هل أنت متأكد من الحذف؟')) {
         if (id) {
@@ -457,6 +498,15 @@ function renderTable() {
           if (error) {
             Dialog.alert('Error: ' + error.message)
             return
+          }
+        }
+        
+        // Remove from persistent Souq template
+        if (row && row.product_name) {
+          const sIdx = souqProducts.findIndex(p => p.product_name === row.product_name)
+          if (sIdx !== -1) {
+            souqProducts.splice(sIdx, 1)
+            await supabase.from('app_settings').upsert({ key: 'souq_products', value: souqProducts }, { onConflict: 'key' })
           }
         }
         
