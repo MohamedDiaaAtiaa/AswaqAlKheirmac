@@ -110,6 +110,12 @@ export const translations = {
     unit_lb: "رطل",
     unit_l: "لتر",
     unit_ml: "مل",
+    // Sell Type
+    sell_type: "نوع البيع",
+    sell_by_unit: "بيع بالوحدة",
+    sell_by_weight: "بيع بالوزن",
+    price_per_weight: "السعر لكل وحدة وزن",
+    weight_unit: "وحدة الوزن",
     // Branches
     branches: "الفروع",
     branches_title: "إدارة الفروع",
@@ -333,6 +339,12 @@ export const translations = {
     unit_lb: "lb",
     unit_l: "L",
     unit_ml: "ml",
+    // Sell Type
+    sell_type: "Sell Type",
+    sell_by_unit: "Sell by Unit",
+    sell_by_weight: "Sell by Weight",
+    price_per_weight: "Price per Weight Unit",
+    weight_unit: "Weight Unit",
     // Branches
     branches: "Branches",
     branches_title: "Branch Management",

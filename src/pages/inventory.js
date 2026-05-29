@@ -170,6 +170,8 @@ function renderTable(searchQuery = '') {
 
     const displayName = getProductName(p)
 
+    const isWeight = ['kg', 'g', 'lb'].includes(p.unit)
+
     return `
     <tr>
       <td>
@@ -188,9 +190,9 @@ function renderTable(searchQuery = '') {
         </div>
       </td>
       <td style="text-transform: capitalize;"><span class="status-badge" style="background: #f1f5f9; color: #475569;">${catDisplay}</span></td>
-      <td style="font-size: 0.75rem; color: var(--text-muted);">${p.sizes.length} ${t.variants_count}</td>
+      <td style="font-size: 0.75rem; color: var(--text-muted);">${isWeight ? `⚖️ ${t['unit_' + p.unit] || p.unit}` : `${p.sizes.length} ${t.variants_count}`}</td>
       <td>
-        <div style="font-weight: 700;">€${minPrice.toFixed(2)}</div>
+        <div style="font-weight: 700;">€${minPrice.toFixed(2)}${isWeight ? `/${t['unit_' + p.unit] || p.unit}` : ''}</div>
         ${discountedVariant ? `<div class="old-price">€${discountedVariant.old_price.toFixed(2)}</div>` : ''}
       </td>
       <td>
@@ -410,7 +412,12 @@ function openEditModal(product = null) {
   const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
 
+  // Determine initial sell type from existing product
+  const isWeightProduct = product && ['kg', 'g', 'lb'].includes(product.unit)
+  let sellType = isWeightProduct ? 'weight' : 'unit'
   let variants = product ? [...product.sizes] : [{ label: 'Default', price: 0, old_price: null }]
+  let weightPrice = isWeightProduct && product.sizes?.[0] ? product.sizes[0].price : 0
+  let weightUnit = isWeightProduct ? product.unit : 'kg'
 
   const modalHtml = `
     <div class="modal-overlay" id="product-full-modal-overlay">
@@ -439,21 +446,11 @@ function openEditModal(product = null) {
                 </select>
               </div>
               <div class="input-group">
-                <label>${t.unit}</label>
-                <select name="unit">
-                  <option value="item" ${product?.unit === 'item' ? 'selected' : ''}>${t.unit_item}</option>
-                  <option value="kg" ${product?.unit === 'kg' ? 'selected' : ''}>${t.unit_kg}</option>
-                  <option value="g" ${product?.unit === 'g' ? 'selected' : ''}>${t.unit_g}</option>
-                  <option value="l" ${product?.unit === 'l' ? 'selected' : ''}>${t.unit_l}</option>
-                  <option value="ml" ${product?.unit === 'ml' ? 'selected' : ''}>${t.unit_ml}</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="input-group">
                 <label>${t.stock}</label>
                 <input type="number" name="stock" required value="${product?.stock || 0}">
               </div>
+            </div>
+            <div class="form-grid">
               <div class="input-group">
                 <label>${t.emoji}</label>
                 <input type="text" name="emoji" value="${product?.emoji || '🛒'}">
@@ -475,8 +472,40 @@ function openEditModal(product = null) {
               </div>
             </div>
             <hr>
-            <div id="full-variants-container"></div>
-            <button type="button" id="add-variant-btn" class="btn-secondary" style="margin-top:0.5rem;">+ ${t.add_variant}</button>
+            <!-- Sell Type Toggle -->
+            <div class="input-group" style="margin-bottom: 1rem;">
+              <label>${t.sell_type}</label>
+              <div id="sell-type-toggle" style="display: flex; gap: 0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); max-width: 320px;">
+                <button type="button" data-sell-type="unit" class="sell-type-btn ${sellType === 'unit' ? 'active' : ''}" style="flex: 1; padding: 0.6rem 1rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s ease; ${sellType === 'unit' ? 'background: var(--primary); color: white;' : 'background: var(--surface-hover); color: var(--text-secondary);'}">
+                  📦 ${t.sell_by_unit}
+                </button>
+                <button type="button" data-sell-type="weight" class="sell-type-btn ${sellType === 'weight' ? 'active' : ''}" style="flex: 1; padding: 0.6rem 1rem; border: none; border-left: 1px solid var(--border); cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s ease; ${sellType === 'weight' ? 'background: var(--primary); color: white;' : 'background: var(--surface-hover); color: var(--text-secondary);'}">
+                  ⚖️ ${t.sell_by_weight}
+                </button>
+              </div>
+            </div>
+            <!-- Unit Section: sizes/variants -->
+            <div id="unit-section" style="display: ${sellType === 'unit' ? 'block' : 'none'};">
+              <div id="full-variants-container"></div>
+              <button type="button" id="add-variant-btn" class="btn-secondary" style="margin-top:0.5rem;">+ ${t.add_variant}</button>
+            </div>
+            <!-- Weight Section: price per weight unit + unit picker -->
+            <div id="weight-section" style="display: ${sellType === 'weight' ? 'block' : 'none'};">
+              <div class="form-grid">
+                <div class="input-group">
+                  <label>${t.price_per_weight}</label>
+                  <input type="number" step="0.01" id="weight-price-input" value="${weightPrice}" min="0" placeholder="0.00">
+                </div>
+                <div class="input-group">
+                  <label>${t.weight_unit}</label>
+                  <select id="weight-unit-select">
+                    <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>${t.unit_kg}</option>
+                    <option value="g" ${weightUnit === 'g' ? 'selected' : ''}>${t.unit_g}</option>
+                    <option value="lb" ${weightUnit === 'lb' ? 'selected' : ''}>${t.unit_lb}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
         <div class="modal-footer">
@@ -490,6 +519,27 @@ function openEditModal(product = null) {
   document.body.insertAdjacentHTML('beforeend', modalHtml)
   const overlay = document.getElementById('product-full-modal-overlay')
   const variantsContainer = document.getElementById('full-variants-container')
+
+  // Sell type toggle logic
+  const unitSection = document.getElementById('unit-section')
+  const weightSection = document.getElementById('weight-section')
+  document.getElementById('sell-type-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sell-type]')
+    if (!btn) return
+    sellType = btn.dataset.sellType
+    // Update toggle styles
+    document.querySelectorAll('#sell-type-toggle .sell-type-btn').forEach(b => {
+      if (b.dataset.sellType === sellType) {
+        b.style.background = 'var(--primary)'
+        b.style.color = 'white'
+      } else {
+        b.style.background = 'var(--surface-hover)'
+        b.style.color = 'var(--text-secondary)'
+      }
+    })
+    unitSection.style.display = sellType === 'unit' ? 'block' : 'none'
+    weightSection.style.display = sellType === 'weight' ? 'block' : 'none'
+  })
 
   const renderVariants = () => {
     variantsContainer.innerHTML = variants.map((v, i) => `
@@ -556,16 +606,29 @@ function openEditModal(product = null) {
   document.getElementById('product-full-form').addEventListener('submit', async (e) => {
     e.preventDefault()
     const formData = new FormData(e.target)
+
+    let finalUnit, finalSizes
+    if (sellType === 'weight') {
+      finalUnit = document.getElementById('weight-unit-select').value
+      let wp = String(document.getElementById('weight-price-input').value)
+        .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
+        .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+      finalSizes = [{ label: t['unit_' + finalUnit] || finalUnit, price: parseFloat(wp) || 0, old_price: null }]
+    } else {
+      finalUnit = 'item'
+      finalSizes = variants
+    }
+
     const payload = {
       name: formData.get('name_ar'),
       name_ar: formData.get('name_ar'),
       name_en: formData.get('name_en'),
       category: formData.get('category'),
-      unit: formData.get('unit'),
+      unit: finalUnit,
       stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
       emoji: formData.get('emoji'),
       image_url: formData.get('image_url') || null,
-      sizes: variants,
+      sizes: finalSizes,
       branch_id: null // Explicitly null for Souq
     }
 
