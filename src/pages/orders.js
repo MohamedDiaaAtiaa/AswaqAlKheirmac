@@ -151,7 +151,7 @@ function renderOrders() {
         </td>
         <td>${itemCount} ${t.items}</td>
         <td style="font-weight: 600;">
-          <div>€${grandTotal.toFixed(2)}</div>
+          <div>EGP ${grandTotal.toFixed(2)}</div>
           ${deliveryFeeVal > 0 ? `<div style="font-size: 0.65rem; color: var(--text-muted);">+${deliveryFeeVal} ${t.delivery_fee_label || 'توصيل'}</div>` : ''}
         </td>
         <td>
@@ -212,7 +212,7 @@ function openOrderModal(order) {
         <div style="font-weight: 500;">${item.product_name}</div>
         <div style="font-size: 0.75rem; color: var(--text-muted);">${t.qty}: ${item.quantity}</div>
       </div>
-      <div style="font-weight: 600;">€${(item.price * item.quantity).toFixed(2)}</div>
+      <div style="font-weight: 600;">EGP ${(item.price * item.quantity).toFixed(2)}</div>
     </div>
   `).join('') || `<p>${t.no_items}</p>`
 
@@ -240,7 +240,7 @@ function openOrderModal(order) {
             ${itemsHtml}
             <div style="display: flex; justify-content: space-between; padding-top: 1rem; font-weight: 700; font-size: 1.1rem;">
               <span>${t.total}</span>
-              <span>€${total.toFixed(2)}</span>
+              <span>EGP ${total.toFixed(2)}</span>
             </div>
           </div>
 
@@ -335,7 +335,7 @@ function openEditOrderModal(order) {
       <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
         <div style="flex: 1;">
           <div style="font-weight: 600;">${item.product_name}</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">€${item.price} ${t.per_unit}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">EGP ${item.price} ${t.per_unit}</div>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <button type="button" class="btn-secondary" style="min-height: 32px; padding: 0 0.5rem;" onclick="updateItemQty(${idx}, -1)">-</button>

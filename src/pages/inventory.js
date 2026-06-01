@@ -192,8 +192,8 @@ function renderTable(searchQuery = '') {
       <td style="text-transform: capitalize;"><span class="status-badge" style="background: #f1f5f9; color: #475569;">${catDisplay}</span></td>
       <td style="font-size: 0.75rem; color: var(--text-muted);">${isWeight ? `⚖️ ${t['unit_' + p.unit] || p.unit}` : `${p.sizes.length} ${t.variants_count}`}</td>
       <td>
-        <div style="font-weight: 700;">€${minPrice.toFixed(2)}${isWeight ? `/${t['unit_' + p.unit] || p.unit}` : ''}</div>
-        ${discountedVariant ? `<div class="old-price">€${discountedVariant.old_price.toFixed(2)}</div>` : ''}
+        <div style="font-weight: 700;">EGP ${minPrice.toFixed(2)}${isWeight ? `/${t['unit_' + p.unit] || p.unit}` : ''}</div>
+        ${discountedVariant ? `<div class="old-price">EGP ${discountedVariant.old_price.toFixed(2)}</div>` : ''}
       </td>
       <td>
         <div class="stock-manager">
@@ -413,11 +413,11 @@ function openEditModal(product = null) {
   const t = translations[lang]
 
   // Determine initial sell type from existing product
-  const isWeightProduct = product && ['kg', 'g', 'lb'].includes(product.unit)
-  let sellType = isWeightProduct ? 'weight' : 'unit'
+  let sellType = (product?.unit && ['kg', 'g', 'lb', 'L', 'ml'].includes(product.unit)) ? 'weight' : 'unit'
+  let weightPrice = sellType === 'weight' && product?.sizes?.length > 0 ? product.sizes[0].price : ''
+  let weightOldPrice = sellType === 'weight' && product?.sizes?.length > 0 ? (product.sizes[0].old_price || '') : ''
+  let weightUnit = sellType === 'weight' ? product.unit : 'kg'
   let variants = product ? [...product.sizes] : [{ label: 'Default', price: 0, old_price: null }]
-  let weightPrice = isWeightProduct && product.sizes?.[0] ? product.sizes[0].price : 0
-  let weightUnit = isWeightProduct ? product.unit : 'kg'
 
   const modalHtml = `
     <div class="modal-overlay" id="product-full-modal-overlay">
@@ -440,6 +440,16 @@ function openEditModal(product = null) {
             </div>
             <div class="form-grid">
               <div class="input-group">
+                <label>${t.description_ar}</label>
+                <textarea name="description_ar" rows="2" placeholder="${t.description_ar}">${product?.description_ar || ''}</textarea>
+              </div>
+              <div class="input-group">
+                <label>${t.description_en}</label>
+                <textarea name="description_en" rows="2" placeholder="${t.description_en}">${product?.description_en || ''}</textarea>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="input-group">
                 <label>${t.category}</label>
                 <select name="category">
                   ${categories.map(c => `<option value="${c.id}" ${product?.category === c.id ? 'selected' : ''}>${getCategoryLabel(c)}</option>`).join('')}
@@ -454,6 +464,19 @@ function openEditModal(product = null) {
               <div class="input-group">
                 <label>${t.emoji}</label>
                 <input type="text" name="emoji" value="${product?.emoji || '🛒'}">
+              </div>
+              <div class="input-group">
+                <label>${t.accepts_decimals || 'Accepts Decimals'}</label>
+                <select name="accepts_decimals" id="accepts-decimals-select">
+                  <option value="false" ${product?.accepts_decimals === false ? 'selected' : ''}>${t.no || 'No'}</option>
+                  <option value="true" ${product?.accepts_decimals === true ? 'selected' : ''}>${t.yes || 'Yes'}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid" id="max-decimal-container" style="display: ${product?.accepts_decimals ? 'grid' : 'none'};">
+              <div class="input-group">
+                <label>${t.max_decimal_divisible || 'Max Decimal Divisible (e.g. 1, 2, 4)'}</label>
+                <input type="number" name="max_decimal_divisible" min="1" value="${product?.max_decimal_divisible || 1}">
               </div>
             </div>
             <div class="form-grid">
@@ -497,6 +520,10 @@ function openEditModal(product = null) {
                   <input type="number" step="0.01" id="weight-price-input" value="${weightPrice}" min="0" placeholder="0.00">
                 </div>
                 <div class="input-group">
+                  <label>${t.was}</label>
+                  <input type="number" step="0.01" id="weight-old-price-input" value="${weightOldPrice}" min="0" placeholder="0.00">
+                </div>
+                <div class="input-group">
                   <label>${t.weight_unit}</label>
                   <select id="weight-unit-select">
                     <option value="kg" ${weightUnit === 'kg' ? 'selected' : ''}>${t.unit_kg}</option>
@@ -519,6 +546,13 @@ function openEditModal(product = null) {
   document.body.insertAdjacentHTML('beforeend', modalHtml)
   const overlay = document.getElementById('product-full-modal-overlay')
   const variantsContainer = document.getElementById('full-variants-container')
+
+  // Decimal logic
+  const acceptsDecimalsSelect = document.getElementById('accepts-decimals-select')
+  const maxDecimalContainer = document.getElementById('max-decimal-container')
+  acceptsDecimalsSelect.addEventListener('change', (e) => {
+    maxDecimalContainer.style.display = e.target.value === 'true' ? 'grid' : 'none'
+  })
 
   // Sell type toggle logic
   const unitSection = document.getElementById('unit-section')
@@ -546,15 +580,20 @@ function openEditModal(product = null) {
       <div class="variant-item" style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
         <input type="text" placeholder="Label" value="${v.label}" onchange="updateFullVariant(${i}, 'label', this.value)" style="flex:2;">
         <input type="number" step="0.01" placeholder="Price" value="${v.price}" onchange="updateFullVariant(${i}, 'price', this.value)" style="flex:1;">
+        <input type="number" step="0.01" placeholder="${t.was}" value="${v.old_price || ''}" onchange="updateFullVariant(${i}, 'old_price', this.value)" style="flex:1;">
         <button type="button" class="btn-icon" onclick="removeFullVariant(${i})" style="color:var(--error);">&times;</button>
       </div>
     `).join('')
   }
 
   window.updateFullVariant = (idx, field, val) => {
-    if (field === 'price') {
-      let numVal = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
-      variants[idx][field] = parseFloat(numVal) || 0;
+    if (field === 'price' || field === 'old_price') {
+      if (!val && field === 'old_price') {
+        variants[idx][field] = null;
+      } else {
+        let numVal = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+        variants[idx][field] = parseFloat(numVal) || (field === 'price' ? 0 : null);
+      }
     } else {
       variants[idx][field] = val;
     }
@@ -613,7 +652,10 @@ function openEditModal(product = null) {
       let wp = String(document.getElementById('weight-price-input').value)
         .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
         .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
-      finalSizes = [{ label: t['unit_' + finalUnit] || finalUnit, price: parseFloat(wp) || 0, old_price: null }]
+      let wop = String(document.getElementById('weight-old-price-input').value || '')
+        .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
+        .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+      finalSizes = [{ label: t['unit_' + finalUnit] || finalUnit, price: parseFloat(wp) || 0, old_price: parseFloat(wop) || null }]
     } else {
       finalUnit = 'item'
       finalSizes = variants
@@ -623,12 +665,16 @@ function openEditModal(product = null) {
       name: formData.get('name_ar'),
       name_ar: formData.get('name_ar'),
       name_en: formData.get('name_en'),
+      description_ar: formData.get('description_ar'),
+      description_en: formData.get('description_en'),
       category: formData.get('category'),
       unit: finalUnit,
       stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
       emoji: formData.get('emoji'),
       image_url: formData.get('image_url') || null,
       sizes: finalSizes,
+      accepts_decimals: formData.get('accepts_decimals') === 'true',
+      max_decimal_divisible: parseInt(formData.get('max_decimal_divisible')) || 1,
       branch_id: null // Explicitly null for Souq
     }
 
@@ -808,6 +854,14 @@ function openPriceEditModal(product) {
               <span style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; display: block;">${product.unit ? t['unit_' + product.unit] || product.unit : t.unit_item}</span>
             </div>
 
+            <div class="input-group" style="margin-top: 1rem;">
+              <label>${t.active || 'Active'}</label>
+              <select name="is_active" style="max-width: 200px;">
+                <option value="true" ${product.is_active !== false ? 'selected' : ''}>${t.yes || 'Yes'}</option>
+                <option value="false" ${product.is_active === false ? 'selected' : ''}>${t.no || 'No'}</option>
+              </select>
+            </div>
+
             <hr style="border: none; border-top: 1px solid var(--border); margin: 1.5rem 0;">
 
             <div class="variants-header">
@@ -877,13 +931,14 @@ function openPriceEditModal(product) {
 
     const payload = {
       stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
-      sizes: variants
+      sizes: variants,
+      is_active: formData.get('is_active') === 'true'
     }
 
-    const id = formData.get('id')
-    const table = product._table || 'products'
-
-    const { error } = await supabase.from(table).update(payload).eq('id', id)
+    const { error } = await supabase
+      .from(product._table || 'products')
+      .update(payload)
+      .eq('id', product.id)
 
     if (error) {
       await Dialog.alert(`Error: ${error.message}`)
