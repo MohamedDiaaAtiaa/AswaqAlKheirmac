@@ -162,6 +162,7 @@ function renderOrders() {
         </td>
         <td>
           <div class="action-row">
+            <button class="btn-secondary info-btn" data-id="${o.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--primary); border-color: var(--primary);">${t.delivery_info || 'Info'}</button>
             <button class="btn-secondary view-btn" data-id="${o.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">${t.view}</button>
             <button class="btn-secondary edit-btn" data-id="${o.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" ${o.status === 'Out for Delivery' || o.status === 'Delivered' ? 'disabled' : ''}>${t.edit}</button>
             <button class="btn-secondary delete-btn" data-id="${o.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);">${t.delete}</button>
@@ -175,6 +176,13 @@ function renderOrders() {
     btn.addEventListener('click', () => {
       const order = orders.find(o => o.id === btn.dataset.id)
       openOrderModal(order)
+    })
+  })
+
+  tbody.querySelectorAll('.info-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const order = orders.find(o => o.id === btn.dataset.id)
+      openDeliveryInfoModal(order)
     })
   })
 
@@ -427,6 +435,45 @@ function subscribeToOrders() {
       fetchOrders()
     })
     .subscribe()
+}
+
+function openDeliveryInfoModal(order) {
+  const lang = localStorage.getItem('aswaq_lang') || 'ar'
+  const t = translations[lang]
+
+  const modalHtml = `
+    <div class="modal-overlay" id="delivery-modal-overlay">
+      <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+          <h3 style="font-size: 1.25rem; font-weight: 700;">${t.delivery_info || 'Delivery Info'}</h3>
+          <button id="close-delivery-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding-top: 1.5rem; padding-bottom: 1.5rem;">
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem;">${t.full_name || 'Full Name'}</label>
+            <div style="font-weight: 600; font-size: 1.05rem;">${order.customer_name || '—'}</div>
+          </div>
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem;">${t.phone_number || 'Phone Number'}</label>
+            <div style="font-weight: 600; font-size: 1.05rem;">
+              <a href="tel:${order.customer_phone}" style="color: var(--primary); text-decoration: none;">${order.customer_phone || '—'}</a>
+            </div>
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem;">${t.address || 'Address'}</label>
+            <div style="font-weight: 500; font-size: 0.95rem; line-height: 1.4;">${order.customer_address || '—'}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml)
+  const overlay = document.getElementById('delivery-modal-overlay')
+  
+  document.getElementById('close-delivery-modal').addEventListener('click', () => {
+    overlay.remove()
+  })
 }
 
 export function cleanupOrders() {
