@@ -118,7 +118,8 @@ function renderOrders() {
     const total = o.order_items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
     const itemCount = o.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0
     const deliveryFeeVal = parseFloat(o.delivery_fee) || 0
-    const grandTotal = total + deliveryFeeVal
+    const discountVal = parseFloat(o.discount_amount) || 0
+    const grandTotal = total + deliveryFeeVal - discountVal
     
     // Branch name
     const branchName = o.branches ? (lang === 'ar' ? o.branches.name : (o.branches.name_en || o.branches.name)) : '—'
@@ -152,6 +153,7 @@ function renderOrders() {
         <td>${itemCount} ${t.items}</td>
         <td style="font-weight: 600;">
           <div>EGP ${grandTotal.toFixed(2)}</div>
+          ${discountVal > 0 ? `<div style="font-size: 0.65rem; color: var(--success);">-EGP ${discountVal} ${t.discount || 'خصم'}</div>` : ''}
           ${deliveryFeeVal > 0 ? `<div style="font-size: 0.65rem; color: var(--text-muted);">+${deliveryFeeVal} ${t.delivery_fee_label || 'توصيل'}</div>` : ''}
         </td>
         <td>
@@ -213,6 +215,9 @@ function openOrderModal(order) {
   const lang = localStorage.getItem('aswaq_lang') || 'ar'
   const t = translations[lang]
   const total = order.order_items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
+  const deliveryFeeVal = parseFloat(order.delivery_fee) || 0
+  const discountVal = parseFloat(order.discount_amount) || 0
+  const grandTotal = total + deliveryFeeVal - discountVal
   
   const itemsHtml = order.order_items?.map(item => `
     <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
@@ -246,9 +251,23 @@ function openOrderModal(order) {
           <div style="margin-bottom: 1.5rem;">
             <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;">${t.items}</h4>
             ${itemsHtml}
-            <div style="display: flex; justify-content: space-between; padding-top: 1rem; font-weight: 700; font-size: 1.1rem;">
-              <span>${t.total}</span>
+            <div style="display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.9rem;">
+              <span>${lang === 'ar' ? 'المجموع الفرعي' : 'Subtotal'}</span>
               <span>EGP ${total.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; font-size: 0.9rem;">
+              <span>${lang === 'ar' ? 'التوصيل' : 'Delivery'}</span>
+              <span>EGP ${deliveryFeeVal.toFixed(2)}</span>
+            </div>
+            ${discountVal > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; font-size: 0.9rem; color: var(--success);">
+              <span>${lang === 'ar' ? 'الخصم' : 'Discount'} ${order.coupon_code ? '('+order.coupon_code+')' : ''}</span>
+              <span>- EGP ${discountVal.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; font-weight: 700; font-size: 1.1rem;">
+              <span>${t.total}</span>
+              <span>EGP ${grandTotal.toFixed(2)}</span>
             </div>
           </div>
 
@@ -256,7 +275,7 @@ function openOrderModal(order) {
             <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;">${lang === 'ar' ? 'معلومات الدفع' : 'Payment Information'}</h4>
             <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--bg-hover);">
               <span style="color: var(--text-muted); font-size: 0.85rem;">${lang === 'ar' ? 'الطريقة' : 'Method'}</span>
-              <span style="font-weight: 600; font-size: 0.85rem; text-transform: capitalize;">${order.payment_method || 'cod'}</span>
+              <span style="font-weight: 600; font-size: 0.85rem; text-transform: capitalize;">${order.payment_method === 'instapay' ? (lang === 'ar' ? 'إنستاباي عند الاستلام' : 'Instapay on Delivery') : (lang === 'ar' ? 'الدفع نقداً عند الاستلام' : 'Cash on Delivery')}</span>
             </div>
             
             ${order.transaction_screenshot_url ? `
@@ -283,6 +302,15 @@ function openOrderModal(order) {
             </div>
             ` : ''}
           </div>
+
+          ${order.notes ? `
+          <div style="margin-bottom: 1.5rem;">
+            <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;">${lang === 'ar' ? '📝 ملاحظات العميل' : '📝 Customer Notes'}</h4>
+            <div style="background: var(--bg-hover); padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85rem; white-space: pre-wrap; line-height: 1.6; color: var(--text);">
+              ${order.notes.replace(/---\n?Payment (Screenshot|via)/g, '').replace(/Payment Screenshot:.*$/gm, '').replace(/Payment via Instapay.*$/gm, '').trim() || ''}
+            </div>
+          </div>
+          ` : ''}
 
           <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px dashed var(--border);">
             <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.75rem; color: var(--text-muted);">${t.status}</label>

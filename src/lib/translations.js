@@ -202,6 +202,7 @@ export const translations = {
     // Categories
     categories_title: "إدارة الفئات",
     categories_nav: "الفئات",
+    coupons_nav: "الكوبونات",
     no_categories: "لا توجد فئات.",
     category_id: "المعرف",
     category_name_ar: "الاسم (عربي)",
@@ -435,6 +436,7 @@ export const translations = {
     // Categories
     categories_title: "Category Management",
     categories_nav: "Categories",
+    coupons_nav: "Coupons",
     no_categories: "No categories found.",
     category_id: "ID",
     category_name_ar: "Name (Arabic)",

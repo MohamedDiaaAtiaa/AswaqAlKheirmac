@@ -8,6 +8,7 @@ import { loadDailyTracking } from './pages/daily_tracking.js'
 import { loadBranchSales } from './pages/branch_sales.js'
 import { loadStoreSettings } from './pages/store_settings.js'
 import { loadCategories } from './pages/categories.js'
+import { render as loadCoupons, attachEvents as attachCouponsEvents } from './pages/coupons.js'
 import { translations } from './lib/translations.js'
 import { supabase } from './lib/supabase.js'
 import { Dialog } from './lib/dialog.js'
@@ -38,7 +39,8 @@ const routes = {
   souq_orders: { title: 'all_orders', loader: (c) => loadOrders(c, ''), isSouq: true },
   souq_sales: { title: 'bs_title', loader: (c) => loadBranchSales(c, true), isSouq: true },
   branch_sales: { title: 'bs_title', loader: (c) => loadBranchSales(c, false) },
-  categories: { title: 'categories_title', loader: loadCategories }
+  categories: { title: 'categories_title', loader: loadCategories },
+  coupons: { title: 'coupons_nav', loader: async (c) => { c.innerHTML = await loadCoupons(); await attachCouponsEvents(); } }
 }
 
 async function init() {
