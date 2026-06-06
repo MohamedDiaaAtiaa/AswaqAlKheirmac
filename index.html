@@ -12,6 +12,28 @@
 </head>
 <body>
   <div id="app">
+    <!-- Login View -->
+    <div id="login-container" class="view hidden">
+      <div class="login-card">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <img src="build/icon.png" alt="أسواق الخير" style="width: 80px; height: 80px; margin-bottom: 1rem;">
+          <h2 data-t="login_title">أسواق الخير - لوحة التحكم</h2>
+          <p data-t="login_subtitle" style="color: var(--text-muted);">قم بتسجيل الدخول لإدارة متجرك</p>
+        </div>
+        <form id="login-form">
+          <div class="input-group">
+            <label data-t="username">اسم المستخدم</label>
+            <input type="text" id="login-username" required>
+          </div>
+          <div class="input-group">
+            <label data-t="password">كلمة المرور</label>
+            <input type="password" id="login-password" required>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1rem;" id="login-submit-btn" data-t="sign_in">تسجيل الدخول</button>
+        </form>
+      </div>
+    </div>
+
     <!-- Main Dashboard View -->
     <div id="dashboard-container" class="view hidden">
       <aside class="sidebar">

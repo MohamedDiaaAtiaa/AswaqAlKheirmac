@@ -16,8 +16,11 @@ import { Dialog } from './lib/dialog.js'
 // Arabic is the default/primary language
 let currentLang = localStorage.getItem('aswaq_lang') || 'ar'
 let branches = []
-let currentBranchId = localStorage.getItem('aswaq_branch_id') || ''
+let loggedInBranch = JSON.parse(localStorage.getItem('aswaq_logged_branch') || 'null')
+let currentBranchId = loggedInBranch ? loggedInBranch.id : (localStorage.getItem('aswaq_branch_id') || '')
 
+const loginContainer = document.getElementById('login-container')
+const loginForm = document.getElementById('login-form')
 const dashboardContainer = document.getElementById('dashboard-container')
 const pageTitle = document.getElementById('page-title')
 const pageContent = document.getElementById('page-content')
@@ -45,11 +48,93 @@ const routes = {
 
 async function init() {
   applyLanguage()
+  if (!loggedInBranch) {
+    showLogin()
+    return
+  }
+  await initDashboard()
+}
+
+function showLogin() {
+  loginContainer.classList.remove('hidden')
+  dashboardContainer.classList.add('hidden')
+}
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const username = document.getElementById('login-username').value.trim()
+  const password = document.getElementById('login-password').value.trim()
+  const btn = document.getElementById('login-submit-btn')
+  btn.disabled = true
+  
+  const { data, error } = await supabase
+    .from('branches')
+    .select('id, name, name_en, is_default, username, password_hash, is_active')
+    .eq('username', username)
+    .single()
+    
+  if (error || !data || (data.password_hash !== password && data.password_hash !== null)) {
+    Dialog.alert(translations[currentLang].invalid_credentials || 'كلمة المرور أو اسم المستخدم غير صحيح')
+    btn.disabled = false
+    return
+  }
+  
+  if (!data.is_active) {
+    Dialog.alert('الحساب غير مفعل')
+    btn.disabled = false
+    return
+  }
+  
+  loggedInBranch = data
+  localStorage.setItem('aswaq_logged_branch', JSON.stringify(data))
+  currentBranchId = data.id
+  localStorage.setItem('aswaq_branch_id', data.id)
+  
+  loginContainer.classList.add('hidden')
+  await initDashboard()
+})
+
+async function initDashboard() {
   await fetchBranches()
   await loadAppTheme()
   showDashboard()
+  updateUIPermissions()
   navigateTo('inventory')
   setupSouqDropdown()
+}
+
+function updateUIPermissions() {
+  if (!loggedInBranch.is_default) {
+    // Hide restricted pages for non-main branches
+    const restrictedPages = ['branches', 'users', 'marketing', 'store_settings', 'categories', 'coupons']
+    document.querySelectorAll('.nav-item').forEach(item => {
+      if (restrictedPages.includes(item.dataset.page) || item.closest('#souq-menu') || item.id === 'souq-trigger') {
+        item.style.display = 'none'
+      }
+    })
+    
+    document.querySelectorAll('.nav-separator').forEach(sep => {
+       sep.style.display = 'none'
+    })
+    
+    // hide branch selector
+    const selectorContainer = document.getElementById('branch-selector-container')
+    if (selectorContainer) selectorContainer.style.display = 'none'
+  }
+  
+  // Add logout button in sidebar footer
+  const footer = document.querySelector('.sidebar-footer')
+  if (footer && !document.getElementById('logout-btn')) {
+    footer.innerHTML = `
+      <button id="logout-btn" class="btn-secondary" style="width: 100%; border-color: rgba(255,255,255,0.1); background: transparent; color: inherit;">
+        <span class="nav-icon">🚪</span> <span data-t="logout">${translations[currentLang].logout || 'تسجيل الخروج'}</span>
+      </button>
+    `
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      localStorage.removeItem('aswaq_logged_branch')
+      window.location.reload()
+    })
+  }
 }
 
 async function loadAppTheme() {
@@ -63,7 +148,11 @@ async function loadAppTheme() {
 }
 
 async function fetchBranches() {
-  const { data, error } = await supabase.from('branches').select('id, name, name_en').eq('is_active', true)
+  let query = supabase.from('branches').select('id, name, name_en').eq('is_active', true)
+  if (!loggedInBranch.is_default) {
+    query = query.eq('id', loggedInBranch.id)
+  }
+  const { data, error } = await query
   if (error) return
   
   branches = data || []
@@ -143,7 +232,7 @@ async function navigateTo(pageId) {
   const t = translations[currentLang]
 
   // Password protection for Souq pages
-  if (route.isSouq) {
+  if (route.isSouq && !loggedInBranch.is_default) {
     const password = await Dialog.prompt(t.souq_password_hint, '', 'password')
     if (password !== 'superadmindo') {
       if (password !== null) await Dialog.alert(t.incorrect_password)

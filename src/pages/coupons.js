@@ -34,64 +34,63 @@ export async function render() {
       </table>
     </div>
 
-    <div id="coupon-modal" class="modal">
-      <div class="modal-content" style="max-width: 500px;">
+    <div id="coupon-modal-overlay" class="modal-overlay hidden">
+      <div class="modal" style="max-width: 540px;">
         <div class="modal-header">
-          <h3 id="modal-title" style="font-size: 1.25rem; font-weight: 800;">${lang === 'ar' ? 'إضافة كوبون' : 'Add Coupon'}</h3>
-          <button class="btn-icon" onclick="closeCouponModal()">✕</button>
+          <h3 id="modal-title">${lang === 'ar' ? 'إضافة كوبون' : 'Add Coupon'}</h3>
+          <button class="close-btn" onclick="closeCouponModal()">✕</button>
         </div>
-        <form id="coupon-form" onsubmit="handleSaveCoupon(event)">
-          <input type="hidden" id="coupon_id">
-          
-          <div class="form-group">
-            <label class="form-label">${lang === 'ar' ? 'كود الخصم' : 'Coupon Code'} *</label>
-            <input type="text" class="input" id="c_code" required placeholder="e.g. SUMMER20" style="text-transform: uppercase;">
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">${lang === 'ar' ? 'الفرع' : 'Branch'} *</label>
-            <select class="input" id="c_branch_id" required></select>
-          </div>
-          
-          <div style="display: flex; gap: 1rem;">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">${lang === 'ar' ? 'نوع الخصم' : 'Discount Type'} *</label>
-              <select class="input" id="c_discount_type" required>
-                <option value="percentage">% ${lang === 'ar' ? 'نسبة مئوية' : 'Percentage'}</option>
-                <option value="fixed">${lang === 'ar' ? 'قيمة ثابتة' : 'Fixed Amount'}</option>
-              </select>
+        <div class="modal-body">
+          <form id="coupon-form" onsubmit="handleSaveCoupon(event)">
+            <input type="hidden" id="coupon_id">
+            
+            <div class="input-group">
+              <label>${lang === 'ar' ? 'كود الخصم' : 'Coupon Code'} *</label>
+              <input type="text" id="c_code" required placeholder="e.g. SUMMER20" style="text-transform: uppercase;">
             </div>
             
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">${lang === 'ar' ? 'القيمة' : 'Value'} *</label>
-              <input type="number" step="0.01" class="input" id="c_discount_value" required>
-            </div>
-          </div>
-          
-          <div style="display: flex; gap: 1rem;">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">${lang === 'ar' ? 'حد أقصى للخصم (لنسبة مئوية)' : 'Max Discount Amount'}</label>
-              <input type="number" step="0.01" class="input" id="c_max_discount_amount">
+            <div class="input-group">
+              <label>${lang === 'ar' ? 'الفرع' : 'Branch'} *</label>
+              <select id="c_branch_id" class="form-textarea" style="min-height: 48px; padding: 0.5rem 1rem;" required></select>
             </div>
             
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label">${lang === 'ar' ? 'مرات الاستخدام المسموحة' : 'Usage Limit'}</label>
-              <input type="number" class="input" id="c_usage_limit" value="100">
+            <div class="form-grid">
+              <div class="input-group">
+                <label>${lang === 'ar' ? 'نوع الخصم' : 'Discount Type'} *</label>
+                <select id="c_discount_type" class="form-textarea" style="min-height: 48px; padding: 0.5rem 1rem;" required>
+                  <option value="percentage">% ${lang === 'ar' ? 'نسبة مئوية' : 'Percentage'}</option>
+                  <option value="fixed">${lang === 'ar' ? 'قيمة ثابتة' : 'Fixed Amount'}</option>
+                </select>
+              </div>
+              
+              <div class="input-group">
+                <label>${lang === 'ar' ? 'القيمة' : 'Value'} *</label>
+                <input type="number" step="0.01" id="c_discount_value" required>
+              </div>
             </div>
-          </div>
+            
+            <div class="form-grid">
+              <div class="input-group">
+                <label>${lang === 'ar' ? 'حد أقصى للخصم (لنسبة مئوية)' : 'Max Discount Amount'}</label>
+                <input type="number" step="0.01" id="c_max_discount_amount">
+              </div>
+              
+              <div class="input-group">
+                <label>${lang === 'ar' ? 'مرات الاستخدام المسموحة' : 'Usage Limit'}</label>
+                <input type="number" id="c_usage_limit" value="100">
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label class="form-label">
-              <input type="checkbox" id="c_is_active" checked> 
-              ${lang === 'ar' ? 'مفعل' : 'Active'}
-            </label>
-          </div>
-          
-          <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
-            <button type="button" class="btn" onclick="closeCouponModal()">${lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
-            <button type="submit" class="btn btn-primary">${lang === 'ar' ? 'حفظ' : 'Save'}</button>
-          </div>
-        </form>
+            <div class="input-group" style="display: flex; align-items: center; gap: 0.5rem;">
+              <input type="checkbox" id="c_is_active" checked style="width: 18px; height: 18px; min-height: auto;"> 
+              <label style="margin: 0;">${lang === 'ar' ? 'مفعل' : 'Active'}</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeCouponModal()">${lang === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+          <button type="submit" form="coupon-form" class="btn-primary" style="width: auto;">${lang === 'ar' ? 'حفظ' : 'Save'}</button>
+        </div>
       </div>
     </div>
   `
@@ -108,7 +107,7 @@ async function populateBranches() {
     const lang = localStorage.getItem('aswaq_lang') || 'ar'
     const select = document.getElementById('c_branch_id')
     select.innerHTML = '<option value="">' + (lang === 'ar' ? 'اختر الفرع...' : 'Select Branch...') + '</option>' +
-      data.map(b => \`<option value="\${b.id}">\${lang === 'ar' ? b.name : (b.name_en || b.name)}</option>\`).join('')
+      data.map(b => `<option value="${b.id}">${lang === 'ar' ? b.name : (b.name_en || b.name)}</option>`).join('')
   }
 }
 
@@ -123,49 +122,49 @@ async function fetchCoupons() {
   
   if (error) {
     console.error(error)
-    tbody.innerHTML = \`<tr><td colspan="6" style="padding: 1rem; color: var(--danger); text-align: center;">\${lang === 'ar' ? 'حدث خطأ' : 'Error loading data'}</td></tr>\`
+    tbody.innerHTML = `<tr><td colspan="6" style="padding: 1rem; color: var(--danger); text-align: center;">${lang === 'ar' ? 'حدث خطأ' : 'Error loading data'}</td></tr>`
     return
   }
 
   if (!data || data.length === 0) {
-    tbody.innerHTML = \`<tr><td colspan="6" style="padding: 2rem; color: var(--text-muted); text-align: center;">\${lang === 'ar' ? 'لا توجد كوبونات' : 'No coupons found'}</td></tr>\`
+    tbody.innerHTML = `<tr><td colspan="6" style="padding: 2rem; color: var(--text-muted); text-align: center;">${lang === 'ar' ? 'لا توجد كوبونات' : 'No coupons found'}</td></tr>`
     return
   }
 
   tbody.innerHTML = data.map(c => {
     const branchName = c.branches ? (lang === 'ar' ? c.branches.name : (c.branches.name_en || c.branches.name)) : '—'
     const discountStr = c.discount_type === 'percentage' 
-      ? \`\${c.discount_value}% \${c.max_discount_amount ? '(Max: '+c.max_discount_amount+')' : ''}\`
-      : \`\${c.discount_value} EGP\`
+      ? `${c.discount_value}% ${c.max_discount_amount ? '(Max: '+c.max_discount_amount+')' : ''}`
+      : `${c.discount_value} EGP`
       
     const statusBadge = c.is_active 
-      ? \`<span class="badge" style="background: var(--success-bg); color: var(--success);">\${lang === 'ar' ? 'مفعل' : 'Active'}</span>\`
-      : \`<span class="badge" style="background: var(--danger-bg); color: var(--danger);">\${lang === 'ar' ? 'معطل' : 'Disabled'}</span>\`
+      ? `<span class="badge" style="background: var(--success-bg); color: var(--success);">${lang === 'ar' ? 'مفعل' : 'Active'}</span>`
+      : `<span class="badge" style="background: var(--danger-bg); color: var(--danger);">${lang === 'ar' ? 'معطل' : 'Disabled'}</span>`
 
-    return \`
+    return `
       <tr style="border-bottom: 1px solid var(--border);">
-        <td style="padding: 1rem; font-weight: 700; color: var(--primary);">\${c.code}</td>
-        <td style="padding: 1rem;">\${branchName}</td>
-        <td style="padding: 1rem;">\${discountStr}</td>
-        <td style="padding: 1rem;">\${c.used_count} / \${c.usage_limit}</td>
-        <td style="padding: 1rem;">\${statusBadge}</td>
+        <td style="padding: 1rem; font-weight: 700; color: var(--primary);">${c.code}</td>
+        <td style="padding: 1rem;">${branchName}</td>
+        <td style="padding: 1rem;">${discountStr}</td>
+        <td style="padding: 1rem;">${c.used_count} / ${c.usage_limit}</td>
+        <td style="padding: 1rem;">${statusBadge}</td>
         <td style="padding: 1rem;">
-          <button class="btn-icon" onclick="window.editCoupon('\${c.id}')" title="Edit">✏️</button>
-          <button class="btn-icon" onclick="window.deleteCoupon('\${c.id}')" style="color: var(--danger);" title="Delete">🗑️</button>
+          <button class="btn-icon" onclick="window.editCoupon('${c.id}')" title="Edit">✏️</button>
+          <button class="btn-icon" onclick="window.deleteCoupon('${c.id}')" style="color: var(--danger);" title="Delete">🗑️</button>
         </td>
       </tr>
-    \`
+    `
   }).join('')
 }
 
 window.openCouponModal = () => {
   document.getElementById('coupon-form').reset()
   document.getElementById('coupon_id').value = ''
-  document.getElementById('coupon-modal').classList.add('active')
+  document.getElementById('coupon-modal-overlay').classList.remove('hidden')
 }
 
 window.closeCouponModal = () => {
-  document.getElementById('coupon-modal').classList.remove('active')
+  document.getElementById('coupon-modal-overlay').classList.add('hidden')
 }
 
 window.handleSaveCoupon = async (e) => {
@@ -211,7 +210,7 @@ window.editCoupon = async (id) => {
     document.getElementById('c_max_discount_amount').value = data.max_discount_amount || ''
     document.getElementById('c_usage_limit').value = data.usage_limit
     document.getElementById('c_is_active').checked = data.is_active
-    document.getElementById('coupon-modal').classList.add('active')
+    document.getElementById('coupon-modal-overlay').classList.remove('hidden')
   }
 }
 
