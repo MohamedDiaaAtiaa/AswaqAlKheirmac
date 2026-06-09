@@ -57,6 +57,9 @@ export async function loadBranchSales(container, souqMode = false) {
   const currentBranchId = localStorage.getItem('aswaq_branch_id') || ''
   if (!isSouqView) {
     selectedBranchId = currentBranchId
+  } else {
+    const loggedInBranch = JSON.parse(localStorage.getItem('aswaq_logged_branch') || 'null')
+    selectedBranchId = loggedInBranch?.is_default ? currentBranchId : 'all'
   }
 
   container.innerHTML = `

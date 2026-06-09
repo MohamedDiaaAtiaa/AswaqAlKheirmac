@@ -67,8 +67,10 @@ CREATE TABLE IF NOT EXISTS products (
   image_url TEXT,
   sizes JSONB NOT NULL DEFAULT '[{"label":"Default","price":1,"old_price":null}]'::jsonb,
   default_size INTEGER DEFAULT 0,
-  stock INTEGER DEFAULT 50,
+  stock NUMERIC(10,3) DEFAULT 50,
   unit TEXT DEFAULT 'item',
+  accepts_decimals BOOLEAN NOT NULL DEFAULT FALSE,
+  max_decimal_divisible NUMERIC(10,3) NOT NULL DEFAULT 1 CHECK (max_decimal_divisible > 0),
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -176,7 +178,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id UUID,
   product_name TEXT NOT NULL,
   size_label TEXT,
-  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  quantity NUMERIC(10,3) NOT NULL DEFAULT 1 CHECK (quantity > 0),
   price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -188,7 +190,7 @@ CREATE OR REPLACE FUNCTION auto_reduce_stock_after_order()
 RETURNS TRIGGER AS $$
 BEGIN
     UPDATE products 
-    SET stock = stock - NEW.quantity 
+    SET stock = GREATEST(0, stock - NEW.quantity)
     WHERE id = NEW.product_id;
     RETURN NEW;
 END;

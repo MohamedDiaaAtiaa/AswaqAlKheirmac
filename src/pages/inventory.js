@@ -5,6 +5,47 @@ let products = []
 let categories = []
 let activeModal = null
 let isSouqMode = false
+const WEIGHT_UNITS = ['kg', 'g', 'lb', 'l', 'ml']
+
+function parseLocalizedNumber(value, fallback = 0) {
+  const normalized = String(value ?? '')
+    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
+    .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+    .replace(',', '.')
+    .trim()
+  const parsed = parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function roundQuantity(value) {
+  return Math.round((parseLocalizedNumber(value, 0) + Number.EPSILON) * 1000) / 1000
+}
+
+function productAllowsDecimals(product) {
+  const unit = String(product?.unit || '').toLowerCase()
+  return Boolean(product?.accepts_decimals) || WEIGHT_UNITS.includes(unit)
+}
+
+function getMaxDecimalDivisible(product) {
+  const fallback = WEIGHT_UNITS.includes(String(product?.unit || '').toLowerCase()) ? 4 : 1
+  return Math.max(1, roundQuantity(product?.max_decimal_divisible || fallback))
+}
+
+function getStockStep(product) {
+  return productAllowsDecimals(product) ? 1 / getMaxDecimalDivisible(product) : 1
+}
+
+function normalizeProduct(product) {
+  return {
+    ...product,
+    sizes: Array.isArray(product?.sizes) && product.sizes.length > 0
+      ? product.sizes
+      : [{ label: 'Default', price: 0, old_price: null }],
+    accepts_decimals: productAllowsDecimals(product),
+    max_decimal_divisible: getMaxDecimalDivisible(product),
+    stock: roundQuantity(product?.stock || 0)
+  }
+}
 
 export async function loadInventory(container, isSouq = false) {
   isSouqMode = isSouq
@@ -111,8 +152,8 @@ async function fetchProducts() {
   if (err2 && err2.code !== 'PGRST116' && err2.code !== '42P01') console.error('Error fetching out of stock:', err2)
 
   products = [
-    ...(active || []).map(p => ({ ...p, _table: 'products' })),
-    ...(outOfStock || []).map(p => ({ ...p, _table: 'out_of_stock_products' }))
+    ...(active || []).map(p => normalizeProduct({ ...p, _table: 'products' })),
+    ...(outOfStock || []).map(p => normalizeProduct({ ...p, _table: 'out_of_stock_products' }))
   ]
   
   products.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -160,7 +201,8 @@ function renderTable(searchQuery = '') {
 
   tbody.innerHTML = filteredProducts.map(p => {
     // Find min price and max discount percentage
-    const minPrice = Math.min(...p.sizes.map(s => s.price))
+    const sizes = Array.isArray(p.sizes) ? p.sizes : []
+    const minPrice = sizes.length > 0 ? Math.min(...sizes.map(s => parseLocalizedNumber(s.price, 0))) : 0
     const discountedVariant = p.sizes.find(s => s.old_price > s.price)
     const discountPercent = discountedVariant ? Math.round((1 - discountedVariant.price / discountedVariant.old_price) * 100) : 0
 
@@ -170,7 +212,8 @@ function renderTable(searchQuery = '') {
 
     const displayName = getProductName(p)
 
-    const isWeight = ['kg', 'g', 'lb'].includes(p.unit)
+    const isWeight = WEIGHT_UNITS.includes(String(p.unit || '').toLowerCase())
+    const stockStep = getStockStep(p)
 
     return `
     <tr>
@@ -198,7 +241,7 @@ function renderTable(searchQuery = '') {
       <td>
         <div class="stock-manager">
           <button class="stock-btn minus" data-id="${p.id}" data-table="${p._table}">-</button>
-          <input type="text" inputmode="decimal" class="stock-input" value="${p.stock || 0}" data-id="${p.id}" data-table="${p._table}">
+          <input type="text" inputmode="decimal" class="stock-input" value="${p.stock || 0}" data-step="${stockStep}" data-id="${p.id}" data-table="${p._table}">
           <button class="stock-btn plus" data-id="${p.id}" data-table="${p._table}">+</button>
           <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; font-weight: 600;">${p.unit ? t['unit_' + p.unit] || p.unit : t.unit_item}</span>
         </div>
@@ -226,7 +269,8 @@ function renderTable(searchQuery = '') {
       const table = btn.dataset.table
       const delta = btn.classList.contains('plus') ? 1 : -1
       const product = products.find(p => p.id === id)
-      const newStock = Math.max(0, (product.stock || 0) + delta)
+      const step = getStockStep(product)
+      const newStock = Math.max(0, roundQuantity((product.stock || 0) + (delta * step)))
       await updateStock(id, table, newStock)
     })
   })
@@ -241,8 +285,7 @@ function renderTable(searchQuery = '') {
     input.addEventListener('change', async () => {
       const id = input.dataset.id
       const table = input.dataset.table
-      let val = String(input.value).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
-      const newStock = Math.max(0, parseInt(val) || 0)
+      const newStock = Math.max(0, roundQuantity(parseLocalizedNumber(input.value, 0)))
       await updateStock(id, table, newStock)
     })
   })
@@ -285,13 +328,14 @@ async function openSouqPickerModal() {
   const currentBranchId = localStorage.getItem('aswaq_branch_id')
 
   // Fetch Souq products
-  const { data: souqProducts, error } = await supabase
+  const { data: souqProductsData, error } = await supabase
     .from('products')
     .select('*')
     .is('branch_id', null)
     .gt('stock', 0)
 
   if (error) return Dialog.alert('Error fetching Souq: ' + error.message)
+  const souqProducts = (souqProductsData || []).map(normalizeProduct)
 
   const modalHtml = `
     <div class="modal-overlay" id="souq-picker-overlay">
@@ -309,7 +353,7 @@ async function openSouqPickerModal() {
           </div>
           <div class="input-group">
             <label>${t.qty}</label>
-            <input type="number" id="souq-take-qty" min="1" value="1" style="width:100%;">
+            <input type="number" id="souq-take-qty" min="0.001" value="1" style="width:100%;">
           </div>
           <div class="input-group">
             <label>${t.price}</label>
@@ -328,11 +372,17 @@ async function openSouqPickerModal() {
   const overlay = document.getElementById('souq-picker-overlay')
   const selectEl = document.getElementById('souq-product-select')
   const priceInput = document.getElementById('souq-take-price')
+  const qtyInput = document.getElementById('souq-take-qty')
 
   // Auto-fill price based on selection
   const updatePriceInput = () => {
     const p = souqProducts.find(x => x.id === selectEl.value)
-    if (p && p.sizes && p.sizes[0]) priceInput.value = p.sizes[0].price
+    if (!p) return
+    const step = getStockStep(p)
+    qtyInput.step = String(step)
+    qtyInput.min = String(step)
+    qtyInput.value = String(step)
+    if (p.sizes && p.sizes[0]) priceInput.value = p.sizes[0].price
   }
   selectEl.addEventListener('change', updatePriceInput)
   if (souqProducts.length > 0) updatePriceInput()
@@ -342,10 +392,12 @@ async function openSouqPickerModal() {
 
   document.getElementById('confirm-souq-take').addEventListener('click', async () => {
     const productId = selectEl.value
-    const qty = parseInt(document.getElementById('souq-take-qty').value) || 0
-    const newPrice = parseFloat(priceInput.value) || 0
+    const qty = Math.max(0, roundQuantity(qtyInput.value))
+    const newPrice = parseLocalizedNumber(priceInput.value, 0)
     const souqProduct = souqProducts.find(p => p.id === productId)
 
+    if (!souqProduct) return Dialog.alert('Product not found')
+    if (qty <= 0) return Dialog.alert('Please enter a valid quantity')
     if (qty > souqProduct.stock) return Dialog.alert('Not enough stock in Souq!')
 
     const confirmBtn = document.getElementById('confirm-souq-take')
@@ -355,7 +407,7 @@ async function openSouqPickerModal() {
     // 1. Subtract from Souq
     const { error: subErr } = await supabase
       .from('products')
-      .update({ stock: souqProduct.stock - qty })
+      .update({ stock: Math.max(0, roundQuantity(souqProduct.stock - qty)) })
       .eq('id', productId)
 
     if (subErr) {
@@ -364,7 +416,7 @@ async function openSouqPickerModal() {
       return
     }
 
-    if (souqProduct.stock - qty <= 0) {
+    if (roundQuantity(souqProduct.stock - qty) <= 0) {
       await Dialog.alert(t.souq_stock_alert || 'Alert: Product is out of stock in Main Souq!')
     }
 
@@ -382,7 +434,7 @@ async function openSouqPickerModal() {
       else updatedSizes.push({ label: 'Default', price: newPrice, old_price: null })
 
       await supabase.from('products').update({ 
-        stock: existing.stock + qty,
+        stock: roundQuantity((existing.stock || 0) + qty),
         sizes: updatedSizes
       }).eq('id', existing.id)
     } else {
@@ -413,11 +465,13 @@ function openEditModal(product = null) {
   const t = translations[lang]
 
   // Determine initial sell type from existing product
-  let sellType = (product?.unit && ['kg', 'g', 'lb', 'L', 'ml'].includes(product.unit)) ? 'weight' : 'unit'
+  let sellType = (product?.unit && WEIGHT_UNITS.includes(String(product.unit).toLowerCase())) ? 'weight' : 'unit'
   let weightPrice = sellType === 'weight' && product?.sizes?.length > 0 ? product.sizes[0].price : ''
   let weightOldPrice = sellType === 'weight' && product?.sizes?.length > 0 ? (product.sizes[0].old_price || '') : ''
   let weightUnit = sellType === 'weight' ? product.unit : 'kg'
-  let variants = product ? [...product.sizes] : [{ label: 'Default', price: 0, old_price: null }]
+  let variants = product?.sizes?.length ? [...product.sizes] : [{ label: 'Default', price: 0, old_price: null }]
+  const initialAcceptsDecimals = product ? productAllowsDecimals(product) : sellType === 'weight'
+  const initialMaxDecimalDivisible = product ? getMaxDecimalDivisible(product) : (sellType === 'weight' ? 4 : 1)
 
   const modalHtml = `
     <div class="modal-overlay" id="product-full-modal-overlay">
@@ -468,15 +522,15 @@ function openEditModal(product = null) {
               <div class="input-group">
                 <label>${t.accepts_decimals || 'Accepts Decimals'}</label>
                 <select name="accepts_decimals" id="accepts-decimals-select">
-                  <option value="false" ${product?.accepts_decimals === false ? 'selected' : ''}>${t.no || 'No'}</option>
-                  <option value="true" ${product?.accepts_decimals === true ? 'selected' : ''}>${t.yes || 'Yes'}</option>
+                  <option value="false" ${!initialAcceptsDecimals ? 'selected' : ''}>${t.no || 'No'}</option>
+                  <option value="true" ${initialAcceptsDecimals ? 'selected' : ''}>${t.yes || 'Yes'}</option>
                 </select>
               </div>
             </div>
-            <div class="form-grid" id="max-decimal-container" style="display: ${product?.accepts_decimals ? 'grid' : 'none'};">
+            <div class="form-grid" id="max-decimal-container" style="display: ${initialAcceptsDecimals ? 'grid' : 'none'};">
               <div class="input-group">
                 <label>${t.max_decimal_divisible || 'Max Decimal Divisible (e.g. 1, 2, 4)'}</label>
-                <input type="number" name="max_decimal_divisible" min="1" value="${product?.max_decimal_divisible || 1}">
+                <input type="number" name="max_decimal_divisible" min="1" value="${initialMaxDecimalDivisible}">
               </div>
             </div>
             <div class="form-grid">
@@ -550,9 +604,26 @@ function openEditModal(product = null) {
   // Decimal logic
   const acceptsDecimalsSelect = document.getElementById('accepts-decimals-select')
   const maxDecimalContainer = document.getElementById('max-decimal-container')
-  acceptsDecimalsSelect.addEventListener('change', (e) => {
-    maxDecimalContainer.style.display = e.target.value === 'true' ? 'grid' : 'none'
-  })
+  const maxDecimalInput = document.querySelector('input[name="max_decimal_divisible"]')
+  const syncDecimalControls = () => {
+    const weightMode = sellType === 'weight'
+    if (weightMode) {
+      acceptsDecimalsSelect.value = 'true'
+      acceptsDecimalsSelect.disabled = true
+      if (parseLocalizedNumber(maxDecimalInput.value, 0) <= 1) {
+        maxDecimalInput.value = '4'
+      }
+      maxDecimalContainer.style.display = 'grid'
+      return
+    }
+
+    acceptsDecimalsSelect.disabled = false
+    maxDecimalContainer.style.display = acceptsDecimalsSelect.value === 'true' ? 'grid' : 'none'
+    if (acceptsDecimalsSelect.value !== 'true') {
+      maxDecimalInput.value = '1'
+    }
+  }
+  acceptsDecimalsSelect.addEventListener('change', syncDecimalControls)
 
   // Sell type toggle logic
   const unitSection = document.getElementById('unit-section')
@@ -573,6 +644,7 @@ function openEditModal(product = null) {
     })
     unitSection.style.display = sellType === 'unit' ? 'block' : 'none'
     weightSection.style.display = sellType === 'weight' ? 'block' : 'none'
+    syncDecimalControls()
   })
 
   const renderVariants = () => {
@@ -604,6 +676,7 @@ function openEditModal(product = null) {
   }
 
   renderVariants()
+  syncDecimalControls()
 
   document.getElementById('add-variant-btn').addEventListener('click', () => {
     variants.push({ label: '', price: 0, old_price: null })
@@ -655,11 +728,16 @@ function openEditModal(product = null) {
       let wop = String(document.getElementById('weight-old-price-input').value || '')
         .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
         .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
-      finalSizes = [{ label: t['unit_' + finalUnit] || finalUnit, price: parseFloat(wp) || 0, old_price: parseFloat(wop) || null }]
+      finalSizes = [{ label: t['unit_' + finalUnit] || finalUnit, price: parseLocalizedNumber(wp, 0), old_price: wop ? parseLocalizedNumber(wop, null) : null }]
     } else {
       finalUnit = 'item'
       finalSizes = variants
     }
+
+    const acceptsDecimals = sellType === 'weight' || formData.get('accepts_decimals') === 'true'
+    const maxDecimalDivisible = acceptsDecimals
+      ? Math.max(1, roundQuantity(formData.get('max_decimal_divisible') || (sellType === 'weight' ? 4 : 1)))
+      : 1
 
     const payload = {
       name: formData.get('name_ar'),
@@ -669,16 +747,18 @@ function openEditModal(product = null) {
       description_en: formData.get('description_en'),
       category: formData.get('category'),
       unit: finalUnit,
-      stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
+      stock: Math.max(0, roundQuantity(formData.get('stock'))),
       emoji: formData.get('emoji'),
       image_url: formData.get('image_url') || null,
       sizes: finalSizes,
-      accepts_decimals: formData.get('accepts_decimals') === 'true',
-      max_decimal_divisible: parseInt(formData.get('max_decimal_divisible')) || 1,
+      accepts_decimals: acceptsDecimals,
+      max_decimal_divisible: maxDecimalDivisible,
       branch_id: null // Explicitly null for Souq
     }
 
-    const { error } = isEdit ? await supabase.from('products').update(payload).eq('id', product.id) : await supabase.from('products').insert([payload])
+    const { error } = isEdit
+      ? await supabase.from(product._table || 'products').update(payload).eq('id', product.id)
+      : await supabase.from('products').insert([payload])
 
     if (!error) {
       overlay.remove()
@@ -697,7 +777,7 @@ async function updateStock(id, table, newStock) {
 
   if (!error) {
     const pIndex = products.findIndex(p => p.id === id)
-    if (pIndex > -1) products[pIndex].stock = newStock
+    if (pIndex > -1) products[pIndex].stock = roundQuantity(newStock)
     // If triggers move it, we should probably refetch to be safe
     await fetchProducts()
   } else {
@@ -930,7 +1010,7 @@ function openPriceEditModal(product) {
     submitBtn.disabled = true
 
     const payload = {
-      stock: parseInt(String(formData.get('stock')).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)) || 0,
+      stock: Math.max(0, roundQuantity(formData.get('stock'))),
       sizes: variants,
       is_active: formData.get('is_active') === 'true'
     }
