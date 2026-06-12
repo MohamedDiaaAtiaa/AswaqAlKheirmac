@@ -39,6 +39,21 @@ export async function loadStoreSettings(container) {
     }
   }
 
+  // Fetch free delivery settings
+  const { data: fdData } = await supabase.from('app_settings').select('value').eq('key', 'free_delivery').single()
+  if (fdData) {
+    storeInfo.free_delivery_active = fdData.value?.active ?? false
+    storeInfo.free_delivery_threshold = fdData.value?.threshold ?? 0
+  }
+
+  // Fetch global discount
+  const { data: gdData } = await supabase.from('app_settings').select('value').eq('key', 'global_discount').single()
+  if (gdData) {
+    storeInfo.global_discount_active = gdData.value?.active ?? false
+    storeInfo.global_discount_percent = gdData.value?.percent ?? 0
+    storeInfo.global_discount_max_amount = gdData.value?.max_amount ?? null
+  }
+
   renderSettings(container)
 }
 
@@ -153,6 +168,52 @@ function renderSettings(container) {
         </div>
       </div>
 
+      <!-- Free Delivery Settings -->
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+          🚚 ${lang === 'ar' ? 'التوصيل المجاني' : 'Free Delivery'}
+        </h3>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+          <input type="checkbox" id="si-free-delivery-active" ${s.free_delivery_active ? 'checked' : ''} style="width: 20px; height: 20px;">
+          <label for="si-free-delivery-active" style="font-weight: 700; margin: 0;">${lang === 'ar' ? 'تفعيل التوصيل المجاني' : 'Enable Free Delivery'}</label>
+        </div>
+        <div class="input-group">
+          <label>${lang === 'ar' ? 'الحد الأدنى للطلب (ج.م)' : 'Minimum Order Amount (EGP)'}</label>
+          <input type="number" id="si-free-delivery-threshold" value="${s.free_delivery_threshold || 0}" step="0.01">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+            ${lang === 'ar' ? 'إذا تجاوز الطلب هذا المبلغ، يصبح التوصيل مجانياً.' : 'Orders above this amount will have free delivery.'}
+          </p>
+        </div>
+      </div>
+
+      <!-- Global Discounts -->
+      <div class="card" style="margin-bottom: 1.5rem; background: #fffbeb; border: 1px solid #fde68a;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; color: #d97706; display: flex; align-items: center; gap: 0.5rem;">
+          🏷️ ${lang === 'ar' ? 'خصم عام على جميع المنتجات' : 'Global Discount'}
+        </h3>
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+          <input type="checkbox" id="si-global-discount-active" ${s.global_discount_active ? 'checked' : ''} style="width: 20px; height: 20px;">
+          <label for="si-global-discount-active" style="font-weight: 700; margin: 0; color: #d97706;">
+            ${lang === 'ar' ? 'تفعيل الخصم العام' : 'Enable Global Discount'}
+          </label>
+        </div>
+        <div class="form-grid">
+          <div class="input-group">
+            <label style="color: #d97706;">${lang === 'ar' ? 'نسبة الخصم (%)' : 'Discount Percentage (%)'}</label>
+            <input type="number" id="si-global-discount-percent" value="${s.global_discount_percent || 0}" min="0" max="100" step="0.1" style="border-color: #fde68a;">
+          </div>
+          <div class="input-group">
+            <label style="color: #d97706;">${lang === 'ar' ? 'الحد الأقصى للخصم (اختياري)' : 'Max Discount Amount (Optional)'}</label>
+            <input type="number" id="si-global-discount-max" value="${s.global_discount_max_amount || ''}" step="0.01" style="border-color: #fde68a;">
+          </div>
+        </div>
+        <p style="font-size: 0.85rem; color: #b45309; margin-top: 8px; font-weight: 600;">
+          ⚠️ ${lang === 'ar' 
+            ? 'تنبيه: سيتم تطبيق هذا الخصم على جميع المنتجات في جميع الفروع بشكل تراكمي مع الخصومات الحالية.' 
+            : 'Warning: This discount will be applied cumulatively to all products across all branches.'}
+        </p>
+      </div>
+
       <!-- Save Button -->
       <div style="display: flex; justify-content: flex-end; gap: 1rem; align-items: center;">
         <span id="si-status" class="status-message"></span>
@@ -217,12 +278,23 @@ function renderSettings(container) {
       app_theme: document.getElementById('si-app-theme').value
     }
 
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert({ key: 'store_info', value: payload }, { onConflict: 'key' })
+    const freeDeliveryPayload = {
+      active: document.getElementById('si-free-delivery-active').checked,
+      threshold: parseFloat(document.getElementById('si-free-delivery-threshold').value) || 0
+    }
 
-    if (error) {
-      await Dialog.alert('Error: ' + error.message)
+    const globalDiscountPayload = {
+      active: document.getElementById('si-global-discount-active').checked,
+      percent: parseFloat(document.getElementById('si-global-discount-percent').value) || 0,
+      max_amount: document.getElementById('si-global-discount-max').value ? parseFloat(document.getElementById('si-global-discount-max').value) : null
+    }
+
+    const { error: err1 } = await supabase.from('app_settings').upsert({ key: 'store_info', value: payload }, { onConflict: 'key' })
+    const { error: err2 } = await supabase.from('app_settings').upsert({ key: 'free_delivery', value: freeDeliveryPayload }, { onConflict: 'key' })
+    const { error: err3 } = await supabase.from('app_settings').upsert({ key: 'global_discount', value: globalDiscountPayload }, { onConflict: 'key' })
+
+    if (err1 || err2 || err3) {
+      await Dialog.alert('Error: ' + (err1?.message || err2?.message || err3?.message))
     } else {
       storeInfo = payload
       status.textContent = t.store_saved_success

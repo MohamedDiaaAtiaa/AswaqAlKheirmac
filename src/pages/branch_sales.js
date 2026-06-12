@@ -226,7 +226,7 @@ async function fetchSalesData() {
           display_name: up.product_name,
           emoji: up.emoji,
           image_url: up.image_url,
-          quantity: 0, count: 0, price: 0, meshal: 0
+          quantity: 0, count: 0, price: up.default_price || 0, meshal: 0
         }
       }
     })
@@ -268,9 +268,12 @@ function renderTable() {
     grandTotal += total
 
     const isAggregated = row.is_aggregated
-    const canEditQuantity = !isAggregated // branch can edit quantity, market can too
-    const canEditCountAndMeshal = !isAggregated // branch and market can edit weight and meshal
-    const canEditPrice = !isAggregated && isSouqView // only market can edit price
+    const canEditQuantity = !isAggregated
+    const canEditCountAndMeshal = !isAggregated
+    const loggedBranch = JSON.parse(localStorage.getItem('aswaq_logged_branch') || 'null')
+    const isDefaultAdmin = loggedBranch?.is_default === true
+    const canEditPrice = !isAggregated && (isSouqView || isDefaultAdmin)
+    const templatePrice = isAggregated ? (souqProducts.find(p => p.product_name === row.product_name)?.default_price || 0) : price
 
     const imageHtml = row.image_url 
       ? `<img src="${row.image_url}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">`
@@ -301,7 +304,7 @@ function renderTable() {
       </td>
       <td>
         ${isAggregated ? 
-          `<div style="font-size: 1.2rem; text-align: center; color: var(--text-muted);">-</div>` : 
+          `<input type="text" inputmode="decimal" class="bs-price-template" data-product="${row.product_name}" value="${templatePrice.toFixed(2)}" placeholder="السعر الأساسي" title="السعر الأساسي (يُطبق على الفروع الجديدة)" style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px; border: 1.5px solid #3b82f6; background: #eff6ff; border-radius: 6px; font-weight: 700; color: #1d4ed8; text-align: center;">` :
           `<input type="text" inputmode="decimal" class="bs-cell-input" data-field="price" value="${price.toFixed(2)}" 
           ${canEditPrice ? '' : 'readonly'} style="font-size: 1.1rem; padding: 0.5rem; max-width: 120px;">`
         }
@@ -487,6 +490,26 @@ function renderTable() {
       }
       // Don't call renderTable() here — it destroys the inputs and loses focus
     })
+  })
+
+  // Template base price handler (aggregated view)
+  tbody.querySelectorAll('.bs-price-template').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    })
+    input.addEventListener('change', async () => {
+      const productName = input.dataset.product
+      const newPrice = parseFloat(String(input.value).replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632)).replace(',', '.')) || 0
+      const idx = souqProducts.findIndex(p => p.product_name === productName)
+      if (idx !== -1) {
+        souqProducts[idx].default_price = newPrice
+        await supabase.from('app_settings').upsert({ key: 'souq_products', value: souqProducts }, { onConflict: 'key' })
+      }
+    })
+  })
+
+  // Dummy closer so the forEach above doesn't break (extra close is eaten by JS)
+  tbody.querySelectorAll('.dummy-noop').forEach(_b => {
   })
 
   tbody.querySelectorAll('.delete-bs-row-btn').forEach(btn => {
