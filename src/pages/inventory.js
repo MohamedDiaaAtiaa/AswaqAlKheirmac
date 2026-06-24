@@ -386,7 +386,7 @@ async function openSouqPickerModal() {
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Souq Leftover: ${sp.stock} ${sp.unit ? t['unit_' + sp.unit] || sp.unit : ''}</div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                      <input type="number" id="souq-qty-${sp.id}" min="${stockStep}" step="${stockStep}" value="${stockStep}" style="width: 70px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px;">
+                      <input type="text" inputmode="decimal" id="souq-qty-${sp.id}" placeholder="${stockStep}" value="${stockStep}" style="width: 70px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; text-align: center;">
                       <button class="btn-primary add-souq-btn" data-id="${sp.id}" style="flex: 1; padding: 0.4rem;">${t.add || 'Add'}</button>
                     </div>
                   </div>
@@ -425,6 +425,12 @@ async function openSouqPickerModal() {
   })
 
   overlay.querySelectorAll('.stock-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        input.blur()
+      }
+    })
     input.addEventListener('change', async () => {
       const id = input.dataset.id
       const table = input.dataset.table
@@ -479,6 +485,18 @@ async function openSouqPickerModal() {
       overlay.remove()
       await fetchProducts()
       openSouqPickerModal()
+    })
+  })
+
+  // Support pressing Enter in the quantity input
+  overlay.querySelectorAll('input[id^="souq-qty-"]').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const productId = input.id.replace('souq-qty-', '')
+        const btn = overlay.querySelector(`.add-souq-btn[data-id="${productId}"]`)
+        if (btn) btn.click()
+      }
     })
   })
 }
