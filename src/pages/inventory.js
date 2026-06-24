@@ -332,37 +332,68 @@ async function openSouqPickerModal() {
     .from('products')
     .select('*')
     .is('branch_id', null)
-    .gt('stock', 0)
 
   if (error) return Dialog.alert('Error fetching Souq: ' + error.message)
   const souqProducts = (souqProductsData || []).map(normalizeProduct)
 
   const modalHtml = `
     <div class="modal-overlay" id="souq-picker-overlay">
-      <div class="modal" style="max-width: 500px;">
+      <div class="modal" style="max-width: 900px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="modal-header">
           <h3>${t.select_from_souq}</h3>
           <button id="close-souq-picker" class="close-btn">&times;</button>
         </div>
-        <div class="modal-body">
-          <div class="input-group">
-            <label>${t.product}</label>
-            <select id="souq-product-select" class="form-select" style="width:100%; padding:0.5rem;">
-              ${souqProducts.map(p => `<option value="${p.id}">${getProductName(p)} (${p.stock} ${t['unit_'+p.unit]||p.unit})</option>`).join('')}
-            </select>
+        <div class="modal-body" style="overflow-y: auto; padding: 1rem; flex: 1;">
+          <div class="souq-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
+            ${souqProducts.map(sp => {
+              const branchProduct = products.find(p => p.parent_product_id === sp.id)
+              const isAdded = !!branchProduct
+              const displayName = getProductName(sp)
+              const minPrice = sp.sizes?.length > 0 ? Math.min(...sp.sizes.map(s => parseLocalizedNumber(s.price, 0))) : 0
+              const isWeight = WEIGHT_UNITS.includes(String(sp.unit || '').toLowerCase())
+              const stockStep = getStockStep(sp)
+              
+              if (isAdded) {
+                // Shaded out with branch stock controls
+                return `
+                  <div class="souq-card added" style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; opacity: 0.65; background: var(--surface-hover); position: relative;">
+                    <div style="position: absolute; top: 0.5rem; right: 0.5rem; background: var(--primary); color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">Added</div>
+                    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+                      ${sp.image_url ? `<img src="${sp.image_url}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover;">` : `<span style="font-size: 2rem;">${sp.emoji || '🛒'}</span>`}
+                      <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;">${displayName}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">${minPrice.toFixed(2)} ${t.currency || 'EGP'}</div>
+                      </div>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Souq Leftover: ${sp.stock} ${sp.unit ? t['unit_' + sp.unit] || sp.unit : ''}</div>
+                    <div class="stock-manager" style="justify-content: center; background: var(--surface); padding: 0.25rem; border-radius: 8px;">
+                      <button class="stock-btn minus" data-id="${branchProduct.id}" data-table="${branchProduct._table}">-</button>
+                      <input type="text" inputmode="decimal" class="stock-input" value="${branchProduct.stock || 0}" data-step="${stockStep}" data-id="${branchProduct.id}" data-table="${branchProduct._table}" style="width: 50px; text-align: center;">
+                      <button class="stock-btn plus" data-id="${branchProduct.id}" data-table="${branchProduct._table}">+</button>
+                    </div>
+                  </div>
+                `
+              } else {
+                // Not added, allow pulling from Souq
+                return `
+                  <div class="souq-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; background: var(--surface);">
+                    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+                      ${sp.image_url ? `<img src="${sp.image_url}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover;">` : `<span style="font-size: 2rem;">${sp.emoji || '🛒'}</span>`}
+                      <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;">${displayName}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">${minPrice.toFixed(2)} ${t.currency || 'EGP'}</div>
+                      </div>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Souq Leftover: ${sp.stock} ${sp.unit ? t['unit_' + sp.unit] || sp.unit : ''}</div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <input type="number" id="souq-qty-${sp.id}" min="${stockStep}" step="${stockStep}" value="${stockStep}" style="width: 70px; padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px;">
+                      <button class="btn-primary add-souq-btn" data-id="${sp.id}" style="flex: 1; padding: 0.4rem;">${t.add || 'Add'}</button>
+                    </div>
+                  </div>
+                `
+              }
+            }).join('')}
           </div>
-          <div class="input-group">
-            <label>${t.qty}</label>
-            <input type="number" id="souq-take-qty" min="0.001" value="1" style="width:100%;">
-          </div>
-          <div class="input-group">
-            <label>${t.price}</label>
-            <input type="number" step="0.01" id="souq-take-price" min="0" style="width:100%;">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="cancel-souq-picker" class="btn-secondary">${t.cancel}</button>
-          <button id="confirm-souq-take" class="btn-primary">${t.save}</button>
         </div>
       </div>
     </div>
@@ -370,74 +401,71 @@ async function openSouqPickerModal() {
 
   document.body.insertAdjacentHTML('beforeend', modalHtml)
   const overlay = document.getElementById('souq-picker-overlay')
-  const selectEl = document.getElementById('souq-product-select')
-  const priceInput = document.getElementById('souq-take-price')
-  const qtyInput = document.getElementById('souq-take-qty')
 
-  // Auto-fill price based on selection
-  const updatePriceInput = () => {
-    const p = souqProducts.find(x => x.id === selectEl.value)
-    if (!p) return
-    const step = getStockStep(p)
-    qtyInput.step = String(step)
-    qtyInput.min = String(step)
-    qtyInput.value = String(step)
-    if (p.sizes && p.sizes[0]) priceInput.value = p.sizes[0].price
-  }
-  selectEl.addEventListener('change', updatePriceInput)
-  if (souqProducts.length > 0) updatePriceInput()
+  document.getElementById('close-souq-picker').addEventListener('click', () => {
+    overlay.remove()
+    fetchProducts()
+  })
 
-  document.getElementById('close-souq-picker').addEventListener('click', () => overlay.remove())
-  document.getElementById('cancel-souq-picker').addEventListener('click', () => overlay.remove())
+  // Handle stock updates for already added products
+  overlay.querySelectorAll('.stock-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id
+      const table = btn.dataset.table
+      const delta = btn.classList.contains('plus') ? 1 : -1
+      const branchProduct = products.find(p => p.id === id)
+      const step = getStockStep(branchProduct)
+      const newStock = Math.max(0, roundQuantity((branchProduct.stock || 0) + (delta * step)))
+      
+      const input = btn.parentElement.querySelector('.stock-input')
+      input.value = newStock
+      
+      await updateStock(id, table, newStock)
+    })
+  })
 
-  document.getElementById('confirm-souq-take').addEventListener('click', async () => {
-    const productId = selectEl.value
-    const qty = Math.max(0, roundQuantity(qtyInput.value))
-    const newPrice = parseLocalizedNumber(priceInput.value, 0)
-    const souqProduct = souqProducts.find(p => p.id === productId)
+  overlay.querySelectorAll('.stock-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const id = input.dataset.id
+      const table = input.dataset.table
+      const newStock = Math.max(0, roundQuantity(parseLocalizedNumber(input.value, 0)))
+      await updateStock(id, table, newStock)
+    })
+  })
 
-    if (!souqProduct) return Dialog.alert('Product not found')
-    if (qty <= 0) return Dialog.alert('Please enter a valid quantity')
-    if (qty > souqProduct.stock) return Dialog.alert('Not enough stock in Souq!')
+  // Handle adding new products from Souq
+  overlay.querySelectorAll('.add-souq-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const productId = btn.dataset.id
+      const qtyInput = document.getElementById(`souq-qty-${productId}`)
+      const qty = Math.max(0, roundQuantity(qtyInput.value))
+      const souqProduct = souqProducts.find(p => p.id === productId)
 
-    const confirmBtn = document.getElementById('confirm-souq-take')
-    confirmBtn.disabled = true
-    confirmBtn.textContent = t.saving
+      if (!souqProduct) return Dialog.alert('Product not found')
+      if (qty <= 0) return Dialog.alert('Please enter a valid quantity')
+      if (qty > souqProduct.stock) return Dialog.alert('Not enough stock in Souq!')
 
-    // 1. Subtract from Souq
-    const { error: subErr } = await supabase
-      .from('products')
-      .update({ stock: Math.max(0, roundQuantity(souqProduct.stock - qty)) })
-      .eq('id', productId)
+      btn.disabled = true
+      btn.textContent = t.saving || 'Saving...'
 
-    if (subErr) {
-      Dialog.alert('Error: ' + subErr.message)
-      confirmBtn.disabled = false
-      return
-    }
+      // 1. Subtract from Souq
+      const { error: subErr } = await supabase
+        .from('products')
+        .update({ stock: Math.max(0, roundQuantity(souqProduct.stock - qty)) })
+        .eq('id', productId)
 
-    if (roundQuantity(souqProduct.stock - qty) <= 0) {
-      await Dialog.alert(t.souq_stock_alert || 'Alert: Product is out of stock in Main Souq!')
-    }
+      if (subErr) {
+        Dialog.alert('Error: ' + subErr.message)
+        btn.disabled = false
+        btn.textContent = t.add || 'Add'
+        return
+      }
 
-    // 2. Add to Branch
-    const { data: existing } = await supabase
-      .from('products')
-      .select('*')
-      .eq('branch_id', currentBranchId)
-      .eq('parent_product_id', productId)
-      .single()
+      if (roundQuantity(souqProduct.stock - qty) <= 0) {
+        await Dialog.alert(t.souq_stock_alert || 'Alert: Product is out of stock in Main Souq!')
+      }
 
-    if (existing) {
-      const updatedSizes = [...existing.sizes]
-      if (updatedSizes.length > 0) updatedSizes[0].price = newPrice
-      else updatedSizes.push({ label: 'Default', price: newPrice, old_price: null })
-
-      await supabase.from('products').update({ 
-        stock: roundQuantity((existing.stock || 0) + qty),
-        sizes: updatedSizes
-      }).eq('id', existing.id)
-    } else {
+      // 2. Add to Branch
       const newProduct = { ...souqProduct }
       delete newProduct.id
       delete newProduct.created_at
@@ -446,16 +474,12 @@ async function openSouqPickerModal() {
       newProduct.parent_product_id = productId
       newProduct.stock = qty
       
-      const newSizes = [...(newProduct.sizes || [])]
-      if (newSizes.length > 0) newSizes[0].price = newPrice
-      else newSizes.push({ label: 'Default', price: newPrice, old_price: null })
-      newProduct.sizes = newSizes
-
       await supabase.from('products').insert([newProduct])
-    }
-
-    overlay.remove()
-    fetchProducts()
+      
+      overlay.remove()
+      await fetchProducts()
+      openSouqPickerModal()
+    })
   })
 }
 
